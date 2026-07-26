@@ -31,8 +31,13 @@ if(DEFINED ENV{SKYRIM_MODS_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_MODS_FOLDER}")
 endif()
 
 # Otherwise, you can set OUTPUT_FOLDER to any place you'd like :)
-# Deploiement dev fixe : mod MO2 dedie (composant separable/publiable plus tard).
-set(OUTPUT_FOLDER "C:/Users/Kevin/AppData/Local/ModOrganizer/Skyrim SE MODS/mods/Piggyback-dev")
+#
+# Set PIGGYBACK_OUTPUT_FOLDER to have the built DLL copied straight into a mod folder, for example:
+#   $env:PIGGYBACK_OUTPUT_FOLDER = "C:/Users/<you>/AppData/Local/ModOrganizer/<instance>/mods/Piggyback-dev"
+# If neither that nor SKYRIM_MODS_FOLDER is set, the DLL simply stays in the build directory.
+if(DEFINED ENV{PIGGYBACK_OUTPUT_FOLDER})
+    set(OUTPUT_FOLDER "$ENV{PIGGYBACK_OUTPUT_FOLDER}")
+endif()
 
 # Setup your SKSE plugin as an SKSE plugin!
 find_package(CommonLibSSE CONFIG REQUIRED)

@@ -71,8 +71,14 @@ Write-Host "OK : DLL compile et deploye (voir CMakeLists : mods\Piggyback-dev)."
 # Piggyback livre son propre Piggyback.pex : c'est lui qui declare les fonctions natives, il doit donc
 # accompagner le DLL dans le meme mod. Les mods consommateurs (Velyn...) se contentent de l'IMPORTER a
 # la compilation, sans le redistribuer.
-$MO2Instance = "C:\Users\Kevin\AppData\Local\ModOrganizer\Skyrim SE MODS"
-$GameDir     = "E:\SteamLibrary\steamapps\common\Skyrim Special Edition"
+# Chemins specifiques a votre machine. Deux facons de les definir, sans modifier ce fichier :
+#   $env:SKYRIM_SE_PATH   = "D:\Steam\steamapps\common\Skyrim Special Edition"
+#   $env:MO2_INSTANCE_PATH = "C:\Users\<vous>\AppData\Local\ModOrganizer\<votre instance>"
+# Sinon, les valeurs par defaut ci-dessous sont utilisees.
+$GameDir = $env:SKYRIM_SE_PATH
+if (-not $GameDir) { $GameDir = "C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition" }
+$MO2Instance = $env:MO2_INSTANCE_PATH
+if (-not $MO2Instance) { $MO2Instance = Join-Path $env:LOCALAPPDATA "ModOrganizer\Skyrim Special Edition" }
 $PapyrusC    = Join-Path $GameDir "Papyrus Compiler\PapyrusCompiler.exe"
 $FlagsFile   = Join-Path $GameDir "Data\Source\Scripts\TESV_Papyrus_Flags.flg"
 $VanillaSrc  = Join-Path $GameDir "Data\Scripts\Source"

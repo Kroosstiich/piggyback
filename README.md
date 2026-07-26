@@ -55,6 +55,18 @@ Full details, coordinate space, rules and examples: **[DOCUMENTATION.md](DOCUMEN
 **Requirements:** Visual Studio 2022+ with the *Desktop development with C++* workload, the **MSVC v143**
 toolset component, and vcpkg.
 
+Point the build at your own install with environment variables, no need to edit any file:
+
+```powershell
+$env:SKYRIM_SE_PATH          = "D:\Steam\steamapps\common\Skyrim Special Edition"
+$env:MO2_INSTANCE_PATH       = "C:\Users\<you>\AppData\Local\ModOrganizer\<instance>"
+$env:PIGGYBACK_OUTPUT_FOLDER = "$env:MO2_INSTANCE_PATH\mods\Piggyback-dev"   # optional
+```
+
+Only `SKYRIM_SE_PATH` is really needed, for the Papyrus compiler. Without
+`PIGGYBACK_OUTPUT_FOLDER`, the DLL stays in the build directory instead of being copied into a mod
+folder.
+
 ```powershell
 .\build.ps1            # Release by default; -Config Debug also works
 ```
@@ -94,7 +106,7 @@ attach.
 **Using Piggyback in your mod:** freely, including in published mods. No permission needed. A credit and
 a link are appreciated but not required.
 
-**Modifying the source:** allowed, on one condition, **credit Piggyback and Kroosstii**. A dependency on
+**Modifying the source:** allowed, on one condition, **credit Piggyback and Kroosstiich**. A dependency on
 the Nexus page is *not* required, since depending on what you change it could cause more problems than it
 solves.
 
@@ -104,9 +116,9 @@ Do not re-upload the plugin as-is under another name.
 
 ## Credits
 
-- **Concept and direction:** Kroosstii. Piggyback grew out of a need in *Velyn the Netch* and was built
+- **Concept and direction:** Kroosstiich. Piggyback grew out of a need in *Velyn the Netch* and was built
   deliberately as a standalone, reusable component.
 - **AI assistance:** written with the help of an AI assistant (Claude), which produced the C++ to
-  specification and helped debug it. The design decisions are Kroosstii's.
+  specification and helped debug it. The design decisions are Kroosstiich's.
 - The per-frame hook approach follows the pattern used by **TrueDirectionalMovement**.
 - Built on **CommonLibSSE-NG**.
