@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/30391080/README.md)
 # Piggyback
 
 **An SKSE framework that attaches one actor to a bone of another actor, every single frame.**
