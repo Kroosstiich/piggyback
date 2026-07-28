@@ -7,7 +7,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 {
 	switch (a_msg->type) {
 	case SKSE::MessagingInterface::kDataLoaded:
-		SKSE::log::info("kDataLoaded : pret.");
+		SKSE::log::info("kDataLoaded: ready.");
 		break;
 	default:
 		break;
@@ -18,14 +18,19 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse)
 {
 	SKSE::Init(skse);
 	SetupLog();
-	SKSE::log::info("Piggyback v0.2.0 : attache un acteur a un noeud du squelette d'un autre, par frame.");
+
+	// Version read from the plugin declaration (generated from the CMake project version), never
+	// hardcoded here: the two used to drift apart, and the log claimed a version that had not shipped.
+	const auto* declaration = SKSE::PluginDeclaration::GetSingleton();
+	SKSE::log::info("Piggyback v{}: attaches an actor to a skeleton node of another, frame by frame.",
+		declaration->GetVersion().string("."));
 
 	Hooks::Install();
 
-	// Fonctions natives exposees au script Papyrus "Piggyback".
+	// Native functions exposed to the "Piggyback" Papyrus script.
 	auto* papyrus = SKSE::GetPapyrusInterface();
 	if (!papyrus || !papyrus->Register(Piggyback::RegisterPapyrus)) {
-		SKSE::log::critical("Echec de l'enregistrement des fonctions Papyrus.");
+		SKSE::log::critical("Failed to register the Papyrus functions.");
 		return false;
 	}
 

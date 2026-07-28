@@ -2,6 +2,6 @@
 
 namespace Hooks
 {
-	// Installe le hook per-frame. A appeler une seule fois au chargement du plugin.
+	// Installs the per-frame hook. Call once, when the plugin loads.
 	void Install();
 }

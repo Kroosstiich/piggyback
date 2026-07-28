@@ -1,28 +1,31 @@
 Scriptname Piggyback Hidden
 
-; API du plugin SKSE Piggyback (composant generique reutilisable, voir docs/02-plugin-rig-moteur.md).
-; Attache un acteur a un noeud du squelette d'un autre acteur, IMAGE PAR IMAGE - ce que Papyrus seul ne
-; peut pas faire (plafonne a 10-20 Hz). Necessite Piggyback.dll ; sans lui ces fonctions echouent
-; silencieusement, donc toujours prevoir un repli (chez nous : le suivi par IA native).
+; Papyrus API of the Piggyback SKSE plugin (a generic, reusable component).
+; Attaches an actor to a skeleton node of another actor, FRAME BY FRAME - which Papyrus alone cannot do
+; (it tops out at 10-20 Hz). Requires Piggyback.dll; without it these functions fail silently, so always
+; provide a fallback. Full documentation: DOCUMENTATION.md.
 
-; asNodeName : nom d'un noeud du squelette de akHost (ex. "NPC Spine2 [Spn2]" pour le haut du dos ;
-; nom vanilla, donc pas besoin de XPMSSE).
-; afX/afY/afZ : offset exprime dans l'espace LOCAL du noeud - il suit donc la rotation de l'os
-; (un offset "vers l'arriere" reste derriere l'hote quand il pivote).
-; abMatchRotation : aligne aussi l'orientation du pet sur le cap de l'hote.
+; asNodeName : name of a node on akHost's skeleton (for example "NPC Spine2 [Spn2]" for the upper back;
+; a vanilla node name, so XPMSSE is not required).
+; afX/afY/afZ : offset expressed in the HOST'S FACING space - X = right, Y = forward (negative = behind),
+; Z = up. NOT the bone's local space: a bone's local axes are not predictable across skeletons and
+; animations, which would make any setting impossible to reason about or expose as a slider.
+; The offset is scaled to the host's build, so the same values read the same on a small character and a
+; large one.
+; abMatchRotation : also aligns the pet's facing with the host's.
 bool Function Attach(Actor akPet, Actor akHost, string asNodeName, float afX, float afY, float afZ, bool abMatchRotation = true) global native
 
-; Met a jour l'offset d'un akPet DEJA attache, sans le detacher : la nouvelle position s'applique en
-; douceur des la frame suivante (aucune "descente puis remontee"). Meme repere que Attach. Permet
-; d'exposer un reglage de position a chaud (ex. curseurs MCM). false si akPet n'est pas attache.
+; Updates the offset of an ALREADY attached akPet without detaching it: the new position applies
+; smoothly from the next frame (no "drop then climb back up"). Same space as Attach. This is what lets
+; you expose a live position setting, such as MCM sliders. Returns false if akPet is not attached.
 bool Function SetOffset(Actor akPet, float afX, float afY, float afZ) global native
 
-; Detache akPet : il redevient pilote par son IA normale.
+; Detaches akPet: it is set down behind the host and returns to its normal AI.
 bool Function Detach(Actor akPet) global native
 
 bool Function IsAttached(Actor akPet) global native
 
-; Sonde de presence : renvoie true si le DLL Piggyback est installe. S'il est absent, la fonction native
-; n'est pas enregistree et Papyrus renvoie false (defaut) - un mod consommateur peut ainsi masquer
-; proprement une option qui depend de Piggyback plutot que de la proposer puis echouer.
+; Presence probe: returns true when Piggyback.dll is installed. When it is absent the native is never
+; registered and Papyrus returns false (the default) - so a consumer mod can cleanly hide a feature that
+; depends on Piggyback instead of offering something that will fail.
 bool Function IsInstalled() global native

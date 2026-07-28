@@ -1,47 +1,81 @@
 #Requires -Version 5.1
 <#
-Build du plugin SKSE "Piggyback" (rig moteur C++, CommonLibSSE-NG). Equivalent de build.ps1 mais pour
-le DLL. Gere l'environnement MSVC v143 (14.44, evite les frictions du v145 tout neuf de VS 2026), vcpkg,
-CMake et Ninja fournis par Visual Studio. La 1re configuration compile CommonLibSSE-NG + deps depuis les
-sources (long, 10-30 min) ; les suivantes sont rapides (cache vcpkg).
+Builds the Piggyback SKSE plugin (C++, CommonLibSSE-NG) and its Papyrus API.
+
+Handles the MSVC v143 environment, vcpkg, and the CMake and Ninja shipped with Visual Studio. The
+first configure builds CommonLibSSE-NG and its dependencies from source, which takes a while (10 to
+30 minutes); later builds are fast thanks to the vcpkg cache.
+
+Paths specific to your machine are read from environment variables, so you never have to edit this
+file:
+
+  $env:VS_PATH           = "C:\Program Files\Microsoft Visual Studio\2022\Community"
+  $env:VCPKG_ROOT        = "C:\dev\vcpkg"
+  $env:SKYRIM_SE_PATH    = "D:\Steam\steamapps\common\Skyrim Special Edition"
+  $env:MO2_INSTANCE_PATH = "C:\Users\<you>\AppData\Local\ModOrganizer\<your instance>"
+
+Only SKYRIM_SE_PATH really matters, and only for the Papyrus compiler. Visual Studio and vcpkg are
+auto-detected when the variables are not set.
 #>
 param(
     [ValidateSet("Release", "Debug")]
     [string]$Config = "Release"
 )
 
-# Continue (pas Stop) : cmake/vcpkg ecrivent des messages informatifs sur stderr, et en PowerShell 5.1
-# un exe natif qui ecrit sur stderr est traite comme une erreur fatale sous "Stop" (faux positif). On se
-# fie donc au VRAI code de sortie ($LASTEXITCODE), verifie explicitement apres chaque etape critique.
+# Continue, not Stop: cmake and vcpkg write informational messages to stderr, and in PowerShell 5.1 a
+# native executable writing to stderr is treated as a fatal error under "Stop" (a false positive). We
+# rely on the REAL exit code ($LASTEXITCODE) instead, checked explicitly after each critical step.
 $ErrorActionPreference = "Continue"
-# Piggyback est desormais un projet AUTONOME (mymods\Piggyback), plus un sous-dossier de VelynTheNetch.
-# vcpkg est partage entre les composants Piggy* -> il vit un cran au-dessus (mymods\vcpkg).
+
 $ProjectRoot = $PSScriptRoot
-$PluginDir   = $ProjectRoot
-$VcpkgRoot   = Join-Path (Split-Path $ProjectRoot -Parent) "vcpkg"
-$VsPath      = "C:\Program Files\Microsoft Visual Studio\18\Community"
-$VcVars      = Join-Path $VsPath "VC\Auxiliary\Build\vcvarsall.bat"
-$CMakeBin    = Join-Path $VsPath "Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
-$NinjaBin    = Join-Path $VsPath "Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
-$ToolsetVer  = "14.44"  # v143 installe cote a cote (voir docs/02-plugin-rig-moteur.md)
+$ToolsetVer  = "14.44"  # v143. Pinned: see the build notes in DOCUMENTATION.md
 
-function Fail($m) { Write-Host "ECHEC: $m" -ForegroundColor Red; exit 1 }
-foreach ($p in @($VcVars, $CMakeBin, $NinjaBin)) { if (-not (Test-Path $p)) { Fail "Introuvable: $p" } }
+function Fail($m) { Write-Host "FAILED: $m" -ForegroundColor Red; exit 1 }
 
-# Bootstrap vcpkg si besoin
+# --- Visual Studio ------------------------------------------------------------------------------
+# $env:VS_PATH wins; otherwise try the usual install locations, newest first.
+$VsPath = $env:VS_PATH
+if (-not $VsPath) {
+    $candidates = @()
+    foreach ($year in @("2026", "18", "2022", "17")) {
+        foreach ($edition in @("Community", "Professional", "Enterprise", "BuildTools")) {
+            $candidates += "C:\Program Files\Microsoft Visual Studio\$year\$edition"
+        }
+    }
+    $VsPath = $candidates | Where-Object { Test-Path (Join-Path $_ "VC\Auxiliary\Build\vcvarsall.bat") } | Select-Object -First 1
+}
+if (-not $VsPath) {
+    Fail "Visual Studio not found. Set `$env:VS_PATH to your installation, for example 'C:\Program Files\Microsoft Visual Studio\2022\Community'."
+}
+
+$VcVars   = Join-Path $VsPath "VC\Auxiliary\Build\vcvarsall.bat"
+$CMakeBin = Join-Path $VsPath "Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
+$NinjaBin = Join-Path $VsPath "Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
+foreach ($p in @($VcVars, $CMakeBin, $NinjaBin)) {
+    if (-not (Test-Path $p)) { Fail "Not found: $p (is the 'Desktop development with C++' workload installed?)" }
+}
+
+# --- vcpkg --------------------------------------------------------------------------------------
+# $env:VCPKG_ROOT wins; otherwise expect a sibling "vcpkg" folder next to the project.
+$VcpkgRoot = $env:VCPKG_ROOT
+if (-not $VcpkgRoot) { $VcpkgRoot = Join-Path (Split-Path $ProjectRoot -Parent) "vcpkg" }
+if (-not (Test-Path $VcpkgRoot)) {
+    Fail "vcpkg not found at '$VcpkgRoot'. Clone it and set `$env:VCPKG_ROOT."
+}
+
 $VcpkgExe = Join-Path $VcpkgRoot "vcpkg.exe"
 if (-not (Test-Path $VcpkgExe)) {
-    Write-Host "=== Bootstrap vcpkg ===" -ForegroundColor Cyan
+    Write-Host "=== Bootstrapping vcpkg ===" -ForegroundColor Cyan
     & (Join-Path $VcpkgRoot "bootstrap-vcpkg.bat") -disableMetrics
-    if (-not (Test-Path $VcpkgExe)) { Fail "bootstrap vcpkg a echoue" }
+    if (-not (Test-Path $VcpkgExe)) { Fail "vcpkg bootstrap failed" }
 }
 $env:VCPKG_ROOT = $VcpkgRoot
 
-# Importer l'environnement MSVC v143 (vcvarsall) dans cette session.
-# vcvarsall.bat appelle vswhere.exe en interne SANS chemin complet -> on ajoute le dossier Installer au
-# PATH pour qu'il le trouve. On redirige la sortie de vcvars vers nul et on capture "set" dans un fichier
-# temp (evite que PowerShell traite la sortie native comme une erreur fatale).
-Write-Host "=== Environnement MSVC $ToolsetVer (v143) ===" -ForegroundColor Cyan
+# --- MSVC environment ---------------------------------------------------------------------------
+# vcvarsall.bat calls vswhere.exe internally WITHOUT a full path, so the Installer folder has to be on
+# PATH for it to be found. vcvars output goes to nul and "set" is captured into a temp file, so
+# PowerShell does not treat native output as a fatal error.
+Write-Host "=== MSVC $ToolsetVer environment (v143) ===" -ForegroundColor Cyan
 $VsInstaller = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
 $env:PATH = "$VsInstaller;$NinjaBin;$CMakeBin;$env:PATH"
 $envDump = [System.IO.Path]::GetTempFileName()
@@ -50,47 +84,47 @@ Get-Content $envDump | ForEach-Object {
     if ($_ -match "^(.*?)=(.*)$") { Set-Item -Path "Env:$($matches[1])" -Value $matches[2] }
 }
 Remove-Item $envDump -ErrorAction SilentlyContinue
-if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) { Fail "environnement MSVC non initialise (cl.exe introuvable apres vcvarsall)" }
-Write-Host "OK : MSVC pret ($((Get-Command cl.exe).Source))"
+if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
+    Fail "MSVC environment not initialised (cl.exe not found after vcvarsall). Is the v143 toolset ($ToolsetVer) installed?"
+}
+Write-Host "OK: MSVC ready ($((Get-Command cl.exe).Source))"
 $cmake = Join-Path $CMakeBin "cmake.exe"
 
-$preset   = "build-$($Config.ToLower())-msvc"
-$binaryDir = Join-Path $PluginDir "build\$($Config.ToLower())-msvc"
+# --- Build --------------------------------------------------------------------------------------
+$preset    = "build-$($Config.ToLower())-msvc"
+$binaryDir = Join-Path $ProjectRoot "build\$($Config.ToLower())-msvc"
 
-Write-Host "=== Configuration CMake ($preset) ===" -ForegroundColor Cyan
-& $cmake --preset $preset -S "$PluginDir"
-if ($LASTEXITCODE -ne 0) { Fail "cmake configure (code $LASTEXITCODE)" }
+Write-Host "=== CMake configure ($preset) ===" -ForegroundColor Cyan
+& $cmake --preset $preset -S "$ProjectRoot"
+if ($LASTEXITCODE -ne 0) { Fail "cmake configure (exit code $LASTEXITCODE)" }
 
-Write-Host "=== Compilation ===" -ForegroundColor Cyan
+Write-Host "=== Compiling ===" -ForegroundColor Cyan
 & $cmake --build "$binaryDir"
-if ($LASTEXITCODE -ne 0) { Fail "cmake build (code $LASTEXITCODE)" }
+if ($LASTEXITCODE -ne 0) { Fail "cmake build (exit code $LASTEXITCODE)" }
 
-Write-Host "OK : DLL compile et deploye (voir CMakeLists : mods\Piggyback-dev)." -ForegroundColor Green
+Write-Host "OK: DLL built. Set PIGGYBACK_OUTPUT_FOLDER to have it copied into a mod folder." -ForegroundColor Green
 
-# --- Papyrus : l'API du composant ---------------------------------------------------------------
-# Piggyback livre son propre Piggyback.pex : c'est lui qui declare les fonctions natives, il doit donc
-# accompagner le DLL dans le meme mod. Les mods consommateurs (Velyn...) se contentent de l'IMPORTER a
-# la compilation, sans le redistribuer.
-# Chemins specifiques a votre machine. Deux facons de les definir, sans modifier ce fichier :
-#   $env:SKYRIM_SE_PATH   = "D:\Steam\steamapps\common\Skyrim Special Edition"
-#   $env:MO2_INSTANCE_PATH = "C:\Users\<vous>\AppData\Local\ModOrganizer\<votre instance>"
-# Sinon, les valeurs par defaut ci-dessous sont utilisees.
+# --- Papyrus API --------------------------------------------------------------------------------
+# Piggyback ships its own Piggyback.pex: it is what declares the native functions, so it has to travel
+# with the DLL in the same mod. Consumer mods only IMPORT it at compile time, they do not redistribute
+# it.
 $GameDir = $env:SKYRIM_SE_PATH
 if (-not $GameDir) { $GameDir = "C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition" }
 $MO2Instance = $env:MO2_INSTANCE_PATH
 if (-not $MO2Instance) { $MO2Instance = Join-Path $env:LOCALAPPDATA "ModOrganizer\Skyrim Special Edition" }
-$PapyrusC    = Join-Path $GameDir "Papyrus Compiler\PapyrusCompiler.exe"
-$FlagsFile   = Join-Path $GameDir "Data\Source\Scripts\TESV_Papyrus_Flags.flg"
-$VanillaSrc  = Join-Path $GameDir "Data\Scripts\Source"
-$ScriptsSrc  = Join-Path $ProjectRoot "Scripts\Source"
-$PexOut      = Join-Path $MO2Instance "mods\Piggyback-dev\Scripts"
 
-# MO2 redirige parfois "Papyrus Compiler" vers son dossier virtuel Overwrite\Root (observe apres des
-# sessions Creation Kit lancees via MO2), ce qui le fait "disparaitre" du vrai dossier du jeu.
+$PapyrusC   = Join-Path $GameDir "Papyrus Compiler\PapyrusCompiler.exe"
+$FlagsFile  = Join-Path $GameDir "Data\Source\Scripts\TESV_Papyrus_Flags.flg"
+$VanillaSrc = Join-Path $GameDir "Data\Scripts\Source"
+$ScriptsSrc = Join-Path $ProjectRoot "Scripts\Source"
+$PexOut     = Join-Path $MO2Instance "mods\Piggyback-dev\Scripts"
+
+# MO2 sometimes redirects "Papyrus Compiler" into its virtual Overwrite\Root folder (seen after
+# running the Creation Kit through MO2), which makes it "disappear" from the real game folder.
 if (-not (Test-Path $PapyrusC)) {
     $overwriteSrc = Join-Path $MO2Instance "overwrite\Root\Papyrus Compiler"
     if (Test-Path $overwriteSrc) {
-        Write-Host "Papyrus Compiler manquant, restauration depuis Overwrite..." -ForegroundColor Yellow
+        Write-Host "Papyrus Compiler missing, restoring it from Overwrite..." -ForegroundColor Yellow
         $dst = Join-Path $GameDir "Papyrus Compiler"
         New-Item -ItemType Directory -Force -Path $dst | Out-Null
         Copy-Item -Path (Join-Path $overwriteSrc "*") -Destination $dst -Force
@@ -98,13 +132,13 @@ if (-not (Test-Path $PapyrusC)) {
 }
 
 if ((Test-Path $PapyrusC) -and (Test-Path $ScriptsSrc)) {
-    Write-Host "=== Compilation Papyrus (API) ===" -ForegroundColor Cyan
+    Write-Host "=== Compiling Papyrus (API) ===" -ForegroundColor Cyan
     New-Item -ItemType Directory -Force -Path $PexOut | Out-Null
     & $PapyrusC $ScriptsSrc -all -output="$PexOut" -import="$VanillaSrc;$ScriptsSrc" -flags="$FlagsFile"
-    if ($LASTEXITCODE -ne 0) { Fail "PapyrusCompiler (code $LASTEXITCODE)" }
-    Write-Host "OK : Piggyback.pex deploye dans $PexOut" -ForegroundColor Green
+    if ($LASTEXITCODE -ne 0) { Fail "PapyrusCompiler (exit code $LASTEXITCODE)" }
+    Write-Host "OK: Piggyback.pex written to $PexOut" -ForegroundColor Green
 } else {
-    Write-Host "Compilation Papyrus ignoree (compilateur ou sources introuvables)." -ForegroundColor Yellow
+    Write-Host "Papyrus compilation skipped (compiler or sources not found). Set `$env:SKYRIM_SE_PATH to enable it." -ForegroundColor Yellow
 }
 
-Write-Host "`nTermine." -ForegroundColor Green
+Write-Host "`nDone." -ForegroundColor Green

@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 # Set your project name. This will be the name of your SKSE .dll file.
-project(Piggyback VERSION 0.1.0 LANGUAGES CXX)
+project(Piggyback VERSION 1.1.0 LANGUAGES CXX)
 
 #
 

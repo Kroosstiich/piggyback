@@ -4,19 +4,19 @@
 
 namespace
 {
-	// Hook per-frame : PlayerCharacter::Update est appele a chaque frame par le moteur. C'est ce qui
-	// permet une attache VRAIMENT lisse (Papyrus plafonne a 10-20 Hz, d'ou l'echec des tentatives
-	// precedentes de suivi par script).
+	// Per-frame hook: PlayerCharacter::Update is called by the engine every frame. This is what makes a
+	// TRULY smooth attachment possible (Papyrus tops out at 10-20 Hz, which is why every earlier
+	// script-driven follow attempt failed).
 	//
-	// L'index de vfunc 0xAD (= Actor::Update) n'est pas devine : il est repris de TrueDirectionalMovement
-	// (ersh1), plugin CommonLibSSE-NG maintenu qui hooke exactement ce vfunc de la meme facon. Un index
-	// errone ferait planter le jeu, donc ne pas le modifier sans verifier sur une source equivalente.
+	// The vfunc index 0xAD (= Actor::Update) is not a guess: it comes from TrueDirectionalMovement
+	// (ersh1), a maintained CommonLibSSE-NG plugin that hooks this exact vfunc the same way. A wrong
+	// index would crash the game, so do not change it without checking an equivalent source.
 	struct PlayerCharacterUpdateHook
 	{
 		static void Update(RE::Actor* a_this, float a_delta)
 		{
-			_Update(a_this, a_delta);        // toujours appeler l'original d'abord
-			Piggyback::UpdateAll(a_delta);   // puis recoller les acteurs attaches, une fois l'hote a jour
+			_Update(a_this, a_delta);        // always call the original first
+			Piggyback::UpdateAll(a_delta);   // then re-stick attached actors, once the host is up to date
 		}
 
 		static inline REL::Relocation<decltype(Update)> _Update;
@@ -28,5 +28,5 @@ void Hooks::Install()
 	REL::Relocation<std::uintptr_t> playerCharacterVtbl{ RE::VTABLE_PlayerCharacter[0] };
 	PlayerCharacterUpdateHook::_Update =
 		playerCharacterVtbl.write_vfunc(0xAD, PlayerCharacterUpdateHook::Update);
-	SKSE::log::info("Hook per-frame installe (PlayerCharacter::Update, vfunc 0xAD).");
+	SKSE::log::info("Per-frame hook installed (PlayerCharacter::Update, vfunc 0xAD).");
 }

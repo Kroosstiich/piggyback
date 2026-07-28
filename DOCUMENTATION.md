@@ -31,6 +31,7 @@ To release:
 
 ```papyrus
 Piggyback.Detach(myPet)
+Utility.Wait(0.9)          ; let the exit transition finish before the AI takes over
 myPet.SetDontMove(false)
 ```
 
@@ -82,6 +83,11 @@ not currently attached.
 Plays the exit transition, sets the actor down behind the host, restores its collision, and returns it to
 its normal AI. Returns `false` if it was not attached.
 
+**This is asynchronous.** The call returns straight away; the transition itself takes about 0.8
+seconds, and Piggyback keeps placing the actor for its duration. Do not give the actor back to its AI
+before that (see [rules](#rules-you-must-follow)). Collision is handed back halfway through, so the
+actor is solid again slightly before it is fully released.
+
 ### `IsAttached(akPet)`
 
 `true` while the actor is carried. Returns `false` during the detach transition.
@@ -112,6 +118,21 @@ behind and 90 down" always means exactly that, whatever the host is doing.
 
 Units are Skyrim units, roughly 1.4 cm each.
 
+### Offsets are scaled to the host's build
+
+Since 1.1.0, the offset you pass is **relative to a standard humanoid**, and Piggyback scales it to the
+actual host. The same values therefore read the same on a slight Breton and on an Orc, and your sliders
+keep their meaning whatever body the player is on.
+
+The scale is measured from the host's own geometry, once, when the pet is attached: the height of the
+anchor node above the host's feet, divided by 100 (a standard humanoid). `GetScale()` is deliberately
+**not** used, because it does not reflect the real size depending on how the character was resized
+(RaceMenu, a race mod, the `setscale` console command). The result is clamped to 0.5x to 2x so an
+unusual anchor node or a non-humanoid host cannot produce an absurd offset.
+
+One consequence worth knowing: if you attach while the host is crouching, the anchor node is lower, so
+the measured scale is slightly under-estimated for the whole attachment.
+
 **Reference values** used by *Velyn the Netch* on `"NPC Spine2 [Spn2]"`:
 
 | Axis | Value | Effect |
@@ -138,12 +159,20 @@ Piggyback.Attach(...)
 myPet.SetDontMove(true)      ; required
 ```
 
-Release it after detaching:
+Release it after detaching — **but wait for the exit transition to finish first**:
 
 ```papyrus
 Piggyback.Detach(myPet)
-myPet.SetDontMove(false)     ; required
+Utility.Wait(0.9)            ; the exit transition takes about 0.8s
+myPet.SetDontMove(false)     ; required, and only once the transition is done
 ```
+
+`Detach` returns immediately, but Piggyback keeps placing the actor frame by frame while it sets it
+down. Handing control back to the AI during that window means two systems are moving the same actor:
+the AI walks it one way, the rig puts it back, and it visibly oscillates.
+
+`IsAttached` returns `false` as soon as `Detach` is called, so it cannot be used to detect the end of
+the transition. Wait a second, or drive it from your own timer.
 
 **2. Re-attach after a save is loaded.**
 
@@ -202,6 +231,7 @@ Function ToggleRide()
 
     if Piggyback.IsAttached(MyPet)
         Piggyback.Detach(MyPet)
+        Utility.Wait(0.9)            ; exit transition, see "Rules you must follow"
         MyPet.SetDontMove(false)
     else
         float x = MyRideX.GetValue()
@@ -242,6 +272,18 @@ EndFunction
   Detection by measuring how far the engine pushed the actor back does not work here, because the
   rider's collision is disabled while carried. A predictive raycast is the known solution and is not
   implemented yet.
+- **The host cannot be pushed by other characters while carrying.** This is how the rider is kept
+  from shoving its host around: rather than disabling the rider's collision, the host is made
+  immovable for the duration, and returns to normal the moment the rider is set down. A side effect
+  worth knowing is that NPCs cannot bump the host either while it carries something.
+- **A carried actor can still push NPCs it passes through.** It remains a fully simulated actor, by
+  design: earlier versions disabled its collision instead, and teleporting a disabled body across the
+  world left the physics engine with stale information about where it was, so it could end up below
+  the floor when released. Sidestepping the rider around obstacles is the planned answer; it is not
+  implemented yet.
+- **The rider turns with a slight lag.** Its heading chases the host's over roughly 125 ms rather than
+  snapping to it, so a fast mouse turn reads as a sweep instead of a jump. This is intentional; the
+  rate is not currently configurable.
 - **Animations depend on the creature.** Movement and sprint events are forwarded, but a creature whose
   animation graph does not use them will stay in its idle. Graph *variables* such as `Speed` are set too,
   but on many creatures they do not drive locomotion, only the events do.
@@ -264,6 +306,13 @@ Something is calling `SetPosition` on it with collision movement disabled, or yo
 **Jitter when the host crouches or walks on a slope**
 Should not happen, there is a vertical guard for this. If it does, report it with the node name and the
 offset you used.
+
+**The host gets pushed sideways while carrying**
+Fixed in 1.1.0: the host is made immovable by other characters for as long as it carries something.
+Earlier versions pushed the host whenever the two capsules overlapped, which players hit as a jolt on
+jumps and on braking out of a run, or as a constant drift when the rider was tuned closer than about
+65 units. If you still see it on 1.1.0 or later, attach your log — the flag is re-applied every frame,
+so it should hold across cell changes.
 
 **Nothing happens at all**
 Check `Documents\My Games\Skyrim Special Edition\SKSE\Piggyback.log`. On startup it lists the registered

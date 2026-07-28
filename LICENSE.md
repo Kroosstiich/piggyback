@@ -1,6 +1,6 @@
 # License
 
-Copyright (c) 2026 Kroosstii
+Copyright (c) 2026 Kroosstiich
 
 ## Using Piggyback in your mod
 
@@ -9,7 +9,7 @@ asking permission. A credit and a link back are appreciated but not required.
 
 ## Modifying the source
 
-You may modify the source code, on one condition: **credit Piggyback and Kroosstii** in your mod's
+You may modify the source code, on one condition: **credit Piggyback and Kroosstiich** in your mod's
 description or documentation.
 
 A dependency on the original Nexus page is **not** required, since depending on what you change, that
