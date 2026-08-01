@@ -2,27 +2,20 @@
 
 Copyright (c) 2026 Kroosstiich
 
-## Using Piggyback in your mod
+Piggyback is licensed under **CC BY-NC 4.0**.
 
-You may use Piggyback as a dependency of your own mod, freely, including in a published mod, without
-asking permission. A credit and a link back are appreciated but not required.
+**The authoritative text is [LICENSE](LICENSE)** — read that one. This file exists only because
+earlier releases had it, and it is kept as a pointer so that nothing links to a dead path.
 
-## Modifying the source
+> This file used to carry a second, separate set of terms alongside an MIT `LICENSE`. The two
+> contradicted each other: MIT explicitly permits selling and sublicensing, which was never the
+> intention. There is now a single set of terms, in `LICENSE`.
 
-You may modify the source code, on one condition: **credit Piggyback and Kroosstiich** in your mod's
-description or documentation.
+## In short
 
-A dependency on the original Nexus page is **not** required, since depending on what you change, that
-could cause more problems than it solves.
-
-If your change fixes or improves something, please consider opening a pull request rather than
-maintaining a permanent fork, so the framework does not fragment into incompatible copies.
-
-## Restriction
-
-Do not re-upload the plugin as-is, or a re-upload of it, under another name.
-
-## No warranty
-
-This software is provided "as is", without warranty of any kind, express or implied. The author is not
-liable for any damage or data loss arising from its use.
+- **Using Piggyback as a dependency of your mod:** freely, including in a published mod, no
+  permission needed.
+- **Modifying the source:** allowed, provided you **credit Piggyback and Kroosstiich**.
+- **Non-commercial only:** Piggyback and anything derived from it may not be sold, put behind a
+  paywall, or bundled into anything paid.
+- Do not re-upload the plugin as-is under another name.

@@ -103,12 +103,17 @@ attach.
 
 ## License and permissions
 
+Piggyback is licensed under **CC BY-NC 4.0** — see [LICENSE](LICENSE).
+
 **Using Piggyback in your mod:** freely, including in published mods. No permission needed. A credit and
 a link are appreciated but not required.
 
 **Modifying the source:** allowed, on one condition, **credit Piggyback and Kroosstiich**. A dependency on
 the Nexus page is *not* required, since depending on what you change it could cause more problems than it
 solves.
+
+**Non-commercial:** Piggyback and anything derived from it may not be sold, put behind a paywall, or
+bundled into anything paid.
 
 Do not re-upload the plugin as-is under another name.
 

@@ -1,21 +1,53 @@
-MIT License
+Piggyback
+Copyright (c) 2026 Kroosstiich. All rights reserved.
 
-Copyright (c) 2026 Kroosstiich
+Licensed under the Creative Commons Attribution-NonCommercial 4.0 International
+licence (CC BY-NC 4.0).
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+SPDX-License-Identifier: CC-BY-NC-4.0
+Full legal text: https://creativecommons.org/licenses/by-nc/4.0/legalcode
+Plain summary:   https://creativecommons.org/licenses/by-nc/4.0/
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+WHAT THIS MEANS IN PRACTICE
+---------------------------
+
+Piggyback is a framework meant to be built on. Using it as a dependency of your
+own mod needs no permission, including in a published mod. A credit and a link
+back are appreciated but not required for that.
+
+If you modify the source, or ship a modified version:
+
+1. ATTRIBUTION. You credit Piggyback and Kroosstiich in your mod's description
+   or documentation. A dependency on the original Nexus page is NOT required,
+   since depending on what you change it could cause more problems than it
+   solves.
+
+2. NON-COMMERCIAL. You may not use Piggyback, or anything derived from it, for
+   commercial purposes. It may not be sold, put behind a paywall, bundled into
+   anything paid, or used to gate access to paid content.
+
+3. COPYRIGHT. Copyright stays with me. This licence grants permission to use the
+   work; it does not transfer ownership of it.
+
+If your change fixes or improves something, please consider opening a pull
+request rather than maintaining a permanent fork, so the framework does not
+fragment into incompatible copies.
+
+Do not re-upload the plugin as-is, or a re-upload of it, under another name.
+
+
+NO WARRANTY
+-----------
+
+This work is provided "as is", without warranty of any kind, express or implied.
+The author is not liable for any damage or data loss arising from its use.
+
+
+NOTE ON EARLIER RELEASES
+------------------------
+
+Versions of Piggyback published before 2026-08-01 were released under the MIT
+licence. A licence already granted cannot be revoked: anyone who obtained those
+versions keeps the rights MIT gave them, for those versions. These terms apply
+from this version onwards.
