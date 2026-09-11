@@ -4,6 +4,10 @@ All notable changes to Piggyback are documented here.
 This project follows [Semantic Versioning](https://semver.org/): the Papyrus API is the public
 contract, and no released function ever changes signature.
 
+## [1.1.1] - 2026-09-11
+
+- Added compatibility with Skyrim Special Edition 1.7.104.
+
 ## [1.1.0] - 2026-07-28
 
 Three fixes, all reported by players on the Nexus page. No API change: mods built against 1.0.0 keep

@@ -2,7 +2,7 @@
     "version": 2,
     "cmakeMinimumRequired": {
         "major": 3,
-        "minor": 21,
+        "minor": 24,
         "patch": 0
     },
     "configurePresets": [
@@ -78,7 +78,7 @@
             "displayName": "Debug",
             "description": "Debug build for testing.",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build/debug-msvc",
+            "binaryDir": "${sourceDir}/build/skyrim-1.7-debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": {
                     "type": "STRING",
@@ -98,7 +98,7 @@
             "displayName": "Release",
             "description": "Optimized release build.",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build/release-msvc",
+            "binaryDir": "${sourceDir}/build/skyrim-1.7-release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": {
                     "type": "STRING",

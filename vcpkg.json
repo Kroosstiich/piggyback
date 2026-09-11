@@ -1,11 +1,20 @@
 {
-    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-    "name": "piggyback",
-    "license": "GPL-3.0-or-later",
-    "version-string": "1.1.0",
-    "dependencies": [
-        "commonlibsse-ng-fork",
-        "simpleini",
-        "nlohmann-json"
-    ]
+  "name": "piggyback",
+  "version-string": "1.1.1",
+  "license": "GPL-3.0-or-later",
+  "dependencies": [
+    "directxmath",
+    "directxtk",
+    "fmt",
+    "nlohmann-json",
+    "rapidcsv",
+    "simpleini",
+    "spdlog",
+    "toml11",
+    "xbyak",
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
 }

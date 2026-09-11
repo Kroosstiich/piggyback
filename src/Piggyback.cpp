@@ -4,13 +4,11 @@
 #include <cmath>
 #include <mutex>
 #include <unordered_map>
-#include <vector>
 
 namespace
 {
 	// Entry and exit transition durations, in seconds. Without them the actor pops onto the host when
-	// attached, and drops like a stone when released. Lengthened after play testing ("it goes too fast
-	// and it is a straight line, not very immersive"): a readable transition beats a fast one.
+	// attached, and drops abruptly when released. These durations keep the transition readable.
 	constexpr float kBlendIn = 0.90f;
 	constexpr float kBlendOut = 0.80f;
 
@@ -88,9 +86,7 @@ namespace
 		bool              matchRotation{ true };
 
 		// offset is what is actually applied; offsetTarget is what the consumer asked for. The first
-		// chases the second, so a live setting change slides the rider into place instead of
-		// teleporting it (reported in testing: "changing the settings TPs her, I would rather have a
-		// natural transition").
+		// chases the second, so a live setting change slides the rider into place without teleporting.
 		RE::NiPoint3 offset;
 		RE::NiPoint3 offsetTarget;
 
@@ -122,25 +118,13 @@ namespace
 		bool  yawInitialised{ false };
 	};
 
-	// --- Post-release watch -------------------------------------------------------------------------
-	// The rider falling through the floor was reported as intermittent: fine for two or three rides,
-	// then not. Nothing in the attachment state differs between those rides - the log shows byte for
-	// byte identical cycles - so whatever goes wrong does so in the engine, after we let go. This
-	// records where the actor actually ends up for a few seconds after release, so the next report
-	// carries a trajectory instead of an impression.
-	struct ReleaseWatch
-	{
-		RE::FormID pet{ 0 };
-		float      elapsed{ 0.0f };
-		float      nextLog{ 0.0f };
-		float      releaseZ{ 0.0f };
-	};
-
-	constexpr float kWatchDuration = 5.0f;
-	constexpr float kWatchInterval = 0.25f;
+	// NOTE - a post-release trace (position and angles sampled for several seconds after each drop)
+	// lived here while the "rider falls through the floor" bug was being chased. It earned its keep:
+	// it showed the fall was gradual rather than instant, which ruled out tunnelling and redirected
+	// the search. Removed once the bug was closed - twenty lines per dismount is not something to
+	// leave in every player's log. Worth rebuilding the same way if another release-time bug appears.
 
 	std::unordered_map<RE::FormID, AttachData> g_attached;
-	std::vector<ReleaseWatch>                  g_watch;
 	std::mutex                                 g_mutex;
 	float                                      g_logTimer{ 0.0f };  // throttle for the diagnostic log
 
@@ -205,19 +189,15 @@ namespace
 	// recreated (cell change, resurrection). It costs nothing, and nothing is written to the save, so
 	// an interrupted session always comes back clean.
 
-	constexpr std::uint32_t kLayerMask = 0x7F;  // the collision layer is the low 7 bits of the filter
 
 	// The rider's physical body in the havok world.
 	//
-	// Deliberately obtained through GetBodyImpl(), a virtual on the base controller, rather than by
-	// casting to bhkCharProxyController and reaching for its phantom. That cast was tried first and
-	// returned null in game on a floating creature: not every actor is driven by a character proxy,
-	// some use a rigid body instead. GetBodyImpl() returns whichever one this actor actually has, so
-	// there is no type to guess at.
+	// CommonLib 7 names controller virtual 0x10 GetRigidBody. Use its declared interface;
+	// do not assume every actor has a bhkCharProxyController. A missing body is handled below.
 	RE::hkpWorldObject* GetCollisionBody(RE::Actor* a_actor)
 	{
 		auto* cc = a_actor->GetCharController();
-		return cc ? cc->GetBodyImpl() : nullptr;
+		return cc ? cc->GetRigidBody() : nullptr;
 	}
 
 	// Current collision layer of the rider, or -1 when it cannot be read.
@@ -227,7 +207,7 @@ namespace
 		if (!body) {
 			return -1;
 		}
-		return static_cast<int>(body->GetCollidableRW()->broadPhaseHandle.collisionFilterInfo & kLayerMask);
+		return static_cast<int>(body->GetCollidableRW()->broadPhaseHandle.collisionFilterInfo.GetCollisionLayer());
 	}
 
 	// Moves the rider to a_layer. Returns false when there is no body to act on.
@@ -238,7 +218,7 @@ namespace
 			return false;
 		}
 		auto& info = body->GetCollidableRW()->broadPhaseHandle.collisionFilterInfo;
-		info = (info & ~kLayerMask) | static_cast<std::uint32_t>(a_layer);
+		info.SetCollisionLayer(a_layer);
 		return true;
 	}
 
@@ -277,18 +257,13 @@ namespace
 		}
 	}
 
-	// Takes the rider's controller out of the simulation without touching its collision filter.
-	//
-	// This is the distinction that matters: the filter is what the broadphase indexes, and changing it
-	// while teleporting a body across the world is what left it misplaced on release. kNoSim only
-	// stops the controller being stepped, so the body stays where the broadphase expects it and there
-	// is nothing stale to recover from when it is cleared.
-	void SetControllerSimulated(RE::Actor* a_actor, bool a_simulated)
-	{
-		if (auto* cc = a_actor->GetCharController()) {
-			cc->flags.set(!a_simulated, RE::CHARACTER_FLAGS::kNoSim);
-		}
-	}
+	// NOTE - kNoSim was tried here and removed in 1.1.1. It froze the rider's controller instead of
+	// only suppressing collision, with two consequences: the angle written on the reference each frame
+	// was no longer applied, so the rider kept whatever orientation it had when picked up, and
+	// freezing then unfreezing the controller of a floating creature (which, unlike a humanoid, may
+	// pitch and roll) left it spinning about a horizontal axis afterwards. It also never delivered
+	// what it was added for - deep-overlap pushing was unchanged with it in place - so removing it
+	// costs nothing. Do not reintroduce it to suppress collision; use the host-side flags above.
 
 	// Reads back what is actually set, so a report says what the engine holds rather than what the
 	// code intended. Bit 14 kNotPushable, 17 kNoSim, 27 kNoCharacterCollisions, 28 kNotPushablePerm.
@@ -296,6 +271,30 @@ namespace
 	{
 		auto* cc = a_actor->GetCharController();
 		return cc ? cc->flags.underlying() : 0u;
+	}
+
+	// Puts a knocked-down actor back on its feet, if it is down.
+	//
+	// A creature that gets knocked over and never plays its get-up animation stays down, and that
+	// state is written to the save: the mesh lies on its side and rolls, while the actor's own pitch
+	// and roll read exactly zero. It looks like a rotation bug, it is not one - and it survives
+	// reloading, which is what makes it so confusing to diagnose.
+	//
+	// The rig calls this when taking control and when handing it back. A carried actor has no
+	// business being in a downed state, and releasing one in that state would strand it there with
+	// no way out short of console commands. PotentiallyFixRagdollState is the engine's own recovery
+	// path, so this asks the game to sort it out rather than forcing anything.
+	void RecoverFromKnockdown(RE::Actor* a_actor)
+	{
+		const auto knock = a_actor->AsActorState()->GetKnockState();
+		if (knock == RE::KNOCK_STATE_ENUM::kNormal && !a_actor->IsInRagdollState()) {
+			return;  // nothing to do, and nothing touched in the overwhelmingly common case
+		}
+
+		SKSE::log::info("[knockdown] pet {:08X} is down (knock={}, ragdoll={}), asking the engine to recover it",
+			a_actor->GetFormID(), static_cast<std::uint32_t>(knock), a_actor->IsInRagdollState());
+		a_actor->PotentiallyFixRagdollState();
+		a_actor->NotifyAnimationGraph("GetUpBegin");
 	}
 
 	// Keeps the rider's controller from simulating a fall while it is being held in the air.
@@ -325,11 +324,19 @@ namespace
 	{
 		a_pet->SetCollision(true);
 		SetCharacterCollisions(a_pet, true);
-		SetControllerSimulated(a_pet, true);
 
 		if (auto* host = RE::TESForm::LookupByID<RE::Actor>(a_data.host)) {
 			SetHostPushable(host, true);
 		}
+
+		// Hand the actor back upright. Its own yaw is kept; only pitch and roll are cleared, which is
+		// the correct resting orientation for an actor on the ground and costs nothing when it was
+		// already level. This also recovers a creature left tilted or spinning by an earlier build.
+		const RE::NiPoint3 angle = a_pet->GetAngle();
+		a_pet->SetAngle(RE::NiPoint3{ 0.0f, 0.0f, angle.z });
+
+		// And never release an actor that is still down.
+		RecoverFromKnockdown(a_pet);
 
 		// Safety net for saves that rode through an earlier build, which did move the rider onto the
 		// non-collidable layer. Nothing sets that layer any more, but an actor left on it would fall
@@ -415,15 +422,24 @@ namespace Piggyback
 		// (seen on jumps). Restored at the end of the detach transition.
 		a_pet->SetCollision(false);
 
+		// Pick up a creature that is on its feet, even if it was lying down when asked. Attaching a
+		// downed actor would carry the downed pose along for the whole ride.
+		RecoverFromKnockdown(a_pet);
+
 		// State of the rider's collision proxy, logged once so a bug report says whether the rig could
 		// act on it at all rather than leaving it to be guessed.
 		SKSE::log::info("Attach: pet {:08X} -> host {:08X}, node '{}', offset ({}, {}, {}), matchRot={}",
 			a_pet->GetFormID(), a_host->GetFormID(), a_node.c_str(), a_x, a_y, a_z, a_matchRotation);
-		SKSE::log::info("[collision] pet {:08X}: charController={}, havok body={}, layer={}",
+		// Knock state and ragdoll are logged on attach because a creature that was left knocked down
+		// stays that way across saves: the mesh lies on its side while the actor's own angles read
+		// perfectly upright, which looks exactly like a rotation bug and is not one.
+		SKSE::log::info("[collision] pet {:08X}: charController={}, havok body={}, layer={}, knock={}, ragdoll={}",
 			a_pet->GetFormID(),
 			a_pet->GetCharController() ? "yes" : "NO",
 			GetCollisionBody(a_pet) ? "yes" : "NO",
-			GetProxyLayer(a_pet));
+			GetProxyLayer(a_pet),
+			static_cast<std::uint32_t>(a_pet->AsActorState()->GetKnockState()),
+			a_pet->IsInRagdollState());
 		return true;
 	}
 
@@ -475,7 +491,24 @@ namespace Piggyback
 		it->second.collisionReleased = true;
 		RestoreCollision(a_pet, it->second);
 
-		SKSE::log::info("Detach: pet {:08X} (exit transition, collision restored to layer {})",
+		// Put the animation graph back to idle before handing the actor over.
+		//
+		// While carried, the rig forwards the host's movement and sprint events so the creature plays
+		// its walk instead of standing frozen. Releasing it mid-stride left the graph running a
+		// locomotion animation for a creature that is no longer moving anywhere - and an animation
+		// playing on the spot moves the MESH while the actor's own pitch and roll stay at zero. That
+		// is what "spinning like a fairground ride" was: not the actor turning, but an animation left
+		// running. Measured: pitch and roll logged at 0.0 throughout, only the mesh appeared to turn.
+		//
+		// Same reasoning as the SprintStop already sent on state changes, applied to the one state
+		// change that had been overlooked: the end of the ride.
+		if (it->second.moveState == 2) {
+			a_pet->NotifyAnimationGraph("SprintStop");
+		}
+		a_pet->NotifyAnimationGraph("moveStop");
+		it->second.moveState = 0;
+
+		SKSE::log::info("Detach: pet {:08X} (exit transition, collision restored to layer {}, animation reset)",
 			a_pet->GetFormID(), GetProxyLayer(a_pet));
 		return true;
 	}
@@ -498,7 +531,7 @@ namespace Piggyback
 	void UpdateAll(float a_delta)
 	{
 		std::lock_guard lock(g_mutex);
-		if (g_attached.empty() && g_watch.empty()) {
+		if (g_attached.empty()) {
 			return;  // overwhelmingly the common case: return immediately, negligible per-frame cost
 		}
 
@@ -522,7 +555,6 @@ namespace Piggyback
 			// character-to-character resolution, and the host's ability to be pushed.
 			if (!data.collisionReleased) {
 				SetCharacterCollisions(pet, false);
-				SetControllerSimulated(pet, false);
 				SetHostPushable(host, false);
 			}
 
@@ -650,14 +682,19 @@ namespace Piggyback
 			// running, 500 sprinting) - and yet the creature stays in idle. Conclusion: its graph does
 			// NOT use "Speed" to drive locomotion. So we go through animation EVENTS instead, sent only
 			// on a state change (not every frame, which would restart the animation in a loop).
+			// Once detaching, the rider is on its way back to the ground and is about to be its own
+			// actor again: it must not be told to keep walking. Locomotion events are frozen here and
+			// the graph is returned to idle by Detach itself.
 			int state = 0;
-			if (hostSpeed > kSprintSpeed) {
-				state = 2;
-			} else if (hostSpeed > 1.0f) {
-				state = 1;
+			if (!data.detaching) {
+				if (hostSpeed > kSprintSpeed) {
+					state = 2;
+				} else if (hostSpeed > 1.0f) {
+					state = 1;
+				}
 			}
 
-			if (state != data.moveState) {
+			if (!data.detaching && state != data.moveState) {
 				const int previous = data.moveState;
 				data.moveState = state;
 
@@ -694,21 +731,24 @@ namespace Piggyback
 			g_logTimer += a_delta;
 			if (g_logTimer >= 1.0f) {
 				g_logTimer = 0.0f;
-				// Flags are read back from the engine, not echoed from what we wrote: if the game
-				// clears them behind us, this is the only way to see it.
+				// One line, everything a bug report needs. Physics state is read back FROM THE ENGINE
+				// rather than echoed from what the code wrote: a flag the game clears behind us is
+				// invisible otherwise, and that distinction has already resolved three bugs here.
+				// Pitch and roll matter in particular - held at zero every frame while carrying, so a
+				// creature that looks tilted while these read zero is a mesh or animation problem, not
+				// an orientation one.
+				const RE::NiPoint3  petAngle = pet->GetAngle();
 				const std::uint32_t hostFlags = GetControllerFlags(host);
-				const std::uint32_t petFlags = GetControllerFlags(pet);
 				SKSE::log::info(
-					"[diag] yaw={:.1f}deg (raw {:.1f}) | scale={:.2f} | target=({:.1f}, {:.1f}, {:.1f}) | pet=({:.1f}, {:.1f}, {:.1f}) | anim: getSpeed={} ({:.2f}) setSpeed={}",
+					"[diag] yaw={:.1f}deg (raw {:.1f}) scale={:.2f} | target=({:.1f}, {:.1f}, {:.1f}) pet=({:.1f}, {:.1f}, {:.1f}) | pitch={:.1f} roll={:.1f} | speed={:.0f} ({}/{}) | hostNotPushable={} layer={} knock={} ragdoll={}",
 					hostYaw * 57.2957795f, rawYaw * 57.2957795f, data.hostScale,
 					ridePos.x, ridePos.y, ridePos.z,
 					pet->GetPosition().x, pet->GetPosition().y, pet->GetPosition().z,
-					gotSpeed, hostSpeed, setSpeed);
-				SKSE::log::info(
-					"[flags] host notPushable={} notPushPerm={} | pet noSim={} noCharColl={} layer={}",
-					(hostFlags & (1u << 14)) != 0, (hostFlags & (1u << 28)) != 0,
-					(petFlags & (1u << 17)) != 0, (petFlags & (1u << 27)) != 0,
-					GetProxyLayer(pet));
+					petAngle.x * 57.2957795f, petAngle.y * 57.2957795f,
+					hostSpeed, gotSpeed, setSpeed,
+					(hostFlags & (1u << 14)) != 0, GetProxyLayer(pet),
+					static_cast<std::uint32_t>(pet->AsActorState()->GetKnockState()),
+					pet->IsInRagdollState());
 			}
 
 			if (data.detaching) {
@@ -729,7 +769,6 @@ namespace Piggyback
 					SKSE::log::info("Detach: pet {:08X} released at ({:.1f}, {:.1f}, {:.1f}), layer {}",
 						it->first, finalPos.x, finalPos.y, finalPos.z, GetProxyLayer(pet));
 
-					g_watch.push_back(ReleaseWatch{ it->first, 0.0f, 0.0f, finalPos.z });
 					it = g_attached.erase(it);
 					continue;
 				}
@@ -759,30 +798,6 @@ namespace Piggyback
 			++it;
 		}
 
-		// Follow released actors for a few seconds and record where they go. Purely observational: it
-		// changes nothing, it only turns "she sometimes falls through the floor" into numbers.
-		for (auto watch = g_watch.begin(); watch != g_watch.end();) {
-			auto* const pet = RE::TESForm::LookupByID<RE::Actor>(watch->pet);
-			watch->elapsed += a_delta;
-
-			// Also stop as soon as the actor is picked back up, otherwise the trace keeps reporting on
-			// an actor the rig is carrying again and reads as a wild fall (seen in an earlier log:
-			// layer flipping back to 15 mid-trace was simply a re-attach).
-			if (!pet || watch->elapsed > kWatchDuration || g_attached.contains(watch->pet)) {
-				watch = g_watch.erase(watch);
-				continue;
-			}
-
-			if (watch->elapsed >= watch->nextLog) {
-				watch->nextLog += kWatchInterval;
-				const RE::NiPoint3 pos = pet->GetPosition();
-				SKSE::log::info("[watch] pet {:08X} +{:.2f}s: z={:.1f} (drop {:.1f}), pos=({:.1f}, {:.1f}), layer={}, charCtrl={}",
-					watch->pet, watch->elapsed, pos.z, watch->releaseZ - pos.z, pos.x, pos.y,
-					GetProxyLayer(pet), pet->GetCharController() ? "yes" : "NO");
-			}
-
-			++watch;
-		}
 	}
 
 	// --- Papyrus bindings ------------------------------------------------------------------------

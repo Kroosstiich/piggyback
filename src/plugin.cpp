@@ -18,6 +18,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse)
 {
 	SKSE::Init(skse);
 	SetupLog();
+	SKSE::log::info("Runtime Skyrim {} | CommonLibSSE-NG 7.5.1",
+		skse->RuntimeVersion().string("."));
 
 	// Version read from the plugin declaration (generated from the CMake project version), never
 	// hardcoded here: the two used to drift apart, and the log claimed a version that had not shipped.

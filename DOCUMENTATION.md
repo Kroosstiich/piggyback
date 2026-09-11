@@ -322,33 +322,36 @@ functions. If that line is missing, the DLL did not load: check SKSE and Address
 
 ## Building from source
 
-**Requirements**
-- Visual Studio 2022 or newer, with the **Desktop development with C++** workload
-- The **MSVC v143** toolset component
-- vcpkg
+Requirements: Visual Studio 2022 or newer with the Desktop development with C++
+workload, CMake/Ninja tools, **MSVC v143 14.44**, Git and a bootstrapped vcpkg checkout.
 
 ```powershell
-.\build.ps1            # Release by default, -Config Debug also works
+$env:VCPKG_ROOT = "D:\Tools\vcpkg"
+.\build.ps1 -Jobs 4
+# Optional, explicit DLL deployment:
+.\build.ps1 -OutputFolder "D:\Mods\Piggyback-dev"
 ```
 
-**Two build traps worth knowing:**
+The default build does not modify the game or mod manager. Its DLL is written to
+`build/skyrim-1.7-release/Piggyback.dll`. Use `-Config Debug` for a debug build.
+The DLL build does not compile Papyrus. The API is unchanged, so a local test can
+retain `Piggyback.pex` from the installed release. To package from source, compile
+`Scripts/Source/Piggyback.psc` with the Creation Kit Papyrus compiler and the
+matching game script imports.
 
-1. **Pin the toolset to v143 in the triplet** (`cmake\x64-windows-skse.cmake`:
-   `VCPKG_PLATFORM_TOOLSET` and `VCPKG_PLATFORM_TOOLSET_VERSION`). Passing `-vcvars_ver` only affects
-   the final build; vcpkg re-detects the compiler for every dependency and will pick a newer toolset,
-   which breaks fmt 9.1.0 (`stdext::checked_array_iterator` was removed).
-2. `vcvarsall.bat` calls `vswhere.exe` **without a full path**, so add
-   `C:\Program Files (x86)\Microsoft Visual Studio\Installer` to `PATH` before invoking it.
+CommonLibSSE-NG **7.5.1** is fetched from
+[alandtse's maintained repository](https://github.com/alandtse/CommonLibSSE-NG)
+at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
+The vcpkg baseline is pinned separately. The build script and triplet select the
+same compiler toolset.
 
-**Layout**
+## Compatibility — 1.1.1
 
-| Path | Contents |
-|---|---|
-| `src\Piggyback.cpp` / `.h` | Attachment logic, transitions, Papyrus bindings |
-| `src\hook.cpp` / `.h` | Per-frame hook on the actor update loop |
-| `src\plugin.cpp` | SKSE entry point |
-| `Scripts\Source\Piggyback.psc` | Papyrus API |
+Requires **Skyrim Steam 1.7.104**, **SKSE 2.3.1**, and the matching Address Library
+database. In-game loading and carrying were confirmed on this runtime.
+Other Skyrim versions, including 1.7.100, and VR have not been revalidated.
 
-**License:** the current development tree is GPL-3.0-or-later; see LICENSE,
-COPYING.txt and THIRD-PARTY-NOTICES.md. Modification and redistribution are permitted
-under those terms. Previously published versions retain their original licenses.
+## License
+
+The 1.1.1 development line is GPL-3.0-or-later. See LICENSE, COPYING.txt and
+THIRD-PARTY-NOTICES.md. Previously published releases retain their original terms.

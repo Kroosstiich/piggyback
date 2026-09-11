@@ -52,30 +52,34 @@ Full details, coordinate space, rules and examples: **[DOCUMENTATION.md](DOCUMEN
 
 ## Building
 
-**Requirements:** Visual Studio 2022+ with the *Desktop development with C++* workload, the **MSVC v143**
-toolset component, and vcpkg.
-
-Point the build at your own install with environment variables, no need to edit any file:
+Requirements: Visual Studio 2022 or newer with the Desktop development with C++
+workload, CMake/Ninja tools, **MSVC v143 14.44**, Git and a bootstrapped vcpkg checkout.
 
 ```powershell
-$env:SKYRIM_SE_PATH          = "D:\Steam\steamapps\common\Skyrim Special Edition"
-$env:MO2_INSTANCE_PATH       = "C:\Users\<you>\AppData\Local\ModOrganizer\<instance>"
-$env:PIGGYBACK_OUTPUT_FOLDER = "$env:MO2_INSTANCE_PATH\mods\Piggyback-dev"   # optional
+$env:VCPKG_ROOT = "D:\Tools\vcpkg"
+.\build.ps1 -Jobs 4
+# Optional, explicit DLL deployment:
+.\build.ps1 -OutputFolder "D:\Mods\Piggyback-dev"
 ```
 
-Only `SKYRIM_SE_PATH` is really needed, for the Papyrus compiler. Without
-`PIGGYBACK_OUTPUT_FOLDER`, the DLL stays in the build directory instead of being copied into a mod
-folder.
+The default build does not modify the game or mod manager. Its DLL is written to
+`build/skyrim-1.7-release/Piggyback.dll`. Use `-Config Debug` for a debug build.
+The DLL build does not compile Papyrus. The API is unchanged, so a local test can
+retain `Piggyback.pex` from the installed release. To package from source, compile
+`Scripts/Source/Piggyback.psc` with the Creation Kit Papyrus compiler and the
+matching game script imports.
 
-```powershell
-.\build.ps1            # Release by default; -Config Debug also works
-```
+CommonLibSSE-NG **7.5.1** is fetched from
+[alandtse's maintained repository](https://github.com/alandtse/CommonLibSSE-NG)
+at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
+The vcpkg baseline is pinned separately. The build script and triplet select the
+same compiler toolset.
 
-Two traps documented in [DOCUMENTATION.md](DOCUMENTATION.md#building-from-source): the toolset must be
-pinned to v143 **in the vcpkg triplet**, and `vcvarsall.bat` needs the VS Installer directory on `PATH`.
+## Compatibility — 1.1.1
 
-Built on [CommonLibSSE-NG](https://github.com/CharmedBaryon/CommonLibSSE-NG), so it runs on SE, AE and
-VR.
+Requires **Skyrim Steam 1.7.104**, **SKSE 2.3.1**, and the matching Address Library
+database. In-game loading and carrying were confirmed on this runtime.
+Other Skyrim versions, including 1.7.100, and VR have not been revalidated.
 
 ---
 
@@ -104,8 +108,7 @@ attach.
 ## License and permissions
 
 The current development tree is licensed under **GPL-3.0-or-later** — see
-[LICENSE](LICENSE) and [COPYING.txt](COPYING.txt). Previously published versions
-retain their original licenses.
+[LICENSE](LICENSE) and [COPYING.txt](COPYING.txt).
 
 **Using Piggyback in your mod:** freely, including in published mods. No permission needed. A credit and
 a link are appreciated but not required.
@@ -113,10 +116,9 @@ a link are appreciated but not required.
 Modification and redistribution, including commercial redistribution, are permitted
 under the GPL. Preserve copyright and license notices and provide corresponding
 source when distributing binaries, as required by the license.
-See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for dependency terms.
 
-This license update does not announce a new binary release or validated support
-for a new Skyrim runtime.
+Previously published versions retain their original licenses. Third-party terms
+are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ---
 
