@@ -103,19 +103,20 @@ attach.
 
 ## License and permissions
 
-Piggyback is licensed under **CC BY-NC 4.0** — see [LICENSE](LICENSE).
+The current development tree is licensed under **GPL-3.0-or-later** — see
+[LICENSE](LICENSE) and [COPYING.txt](COPYING.txt). Previously published versions
+retain their original licenses.
 
 **Using Piggyback in your mod:** freely, including in published mods. No permission needed. A credit and
 a link are appreciated but not required.
 
-**Modifying the source:** allowed, on one condition, **credit Piggyback and Kroosstiich**. A dependency on
-the Nexus page is *not* required, since depending on what you change it could cause more problems than it
-solves.
+Modification and redistribution, including commercial redistribution, are permitted
+under the GPL. Preserve copyright and license notices and provide corresponding
+source when distributing binaries, as required by the license.
+See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for dependency terms.
 
-**Non-commercial:** Piggyback and anything derived from it may not be sold, put behind a paywall, or
-bundled into anything paid.
-
-Do not re-upload the plugin as-is under another name.
+This license update does not announce a new binary release or validated support
+for a new Skyrim runtime.
 
 ---
 

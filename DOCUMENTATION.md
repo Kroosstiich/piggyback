@@ -349,5 +349,6 @@ functions. If that line is missing, the DLL did not load: check SKSE and Address
 | `src\plugin.cpp` | SKSE entry point |
 | `Scripts\Source\Piggyback.psc` | Papyrus API |
 
-**License and permissions:** see the permissions section of the Nexus page. In short, use it freely in
-your mods; if you modify the source, credit Piggyback and Kroosstii.
+**License:** the current development tree is GPL-3.0-or-later; see LICENSE,
+COPYING.txt and THIRD-PARTY-NOTICES.md. Modification and redistribution are permitted
+under those terms. Previously published versions retain their original licenses.
