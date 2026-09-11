@@ -126,7 +126,8 @@ are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 - **Concept and direction:** Kroosstiich. Piggyback grew out of a need in *Velyn the Netch* and was built
   deliberately as a standalone, reusable component.
-- **AI assistance:** written with the help of an AI assistant (Claude), which produced the C++ to
-  specification and helped debug it. The design decisions are Kroosstiich's.
+- **AI assistance:** earlier versions were developed with assistance from **Claude (Anthropic)**.
+  Current maintenance and updates are assisted by **OpenAI Codex**, including the Skyrim 1.7.104
+  compatibility update. The concept, direction, and design decisions remain Kroosstiich's.
 - The per-frame hook approach follows the pattern used by **TrueDirectionalMovement**.
 - Built on **CommonLibSSE-NG**.
