@@ -32,15 +32,13 @@ namespace
 	// the rider eases into a move instead of reacting on the very same frame, then settles without
 	// bouncing. That reads as a living thing reacting to its carrier rather than an object bolted on.
 	//
-	// Upper bound for a lag setting, in seconds. Anything longer reads as a rider left behind.
-	constexpr float kMaxFollowLag = 2.0f;
-
-	// The rider never falls further than this from where it should be, in units at standard build
-	// (scaled with the host). Keeps a fast carrier - a sprint, a glide - from leaving it behind.
-	constexpr float kMaxLagDistance = 150.0f;
+	// Neither the lag nor the distance the rider may fall behind has an upper bound: what reads well
+	// depends on the creature and the mod, so the consumer decides (SetFollowLag, SetFollowMaxDistance).
+	// 1.2.0 capped the lag at 2 s and the distance at 150 units; both were lifted in 1.2.1.
 
 	// A target that moves further than this in a single frame has not travelled, it has been
 	// teleported (fast travel, load door, coc). The spring is reset instead of flying across the map.
+	// Not a limit on the setting: at 60 fps this is 24,000 units per second, far beyond any real move.
 	constexpr float kTeleportDistance = 400.0f;
 
 	// When the lag is switched off at runtime, the rider eases back onto its spot over this time
@@ -159,6 +157,10 @@ namespace
 		// Follow lag, in seconds (0 = off). See SetFollowLag.
 		float moveLag{ kDefaultMoveLag };
 		float turnLag{ kDefaultTurnLag };
+
+		// How far the rider may fall behind its spot, in units at standard build (0 = no limit).
+		// See SetFollowMaxDistance.
+		float maxLagDistance{ 0.0f };
 
 		// Heading spring: angular velocity of smoothedYaw, and the host yaw of the previous frame
 		// (always tracked, so switching the turn lag on mid-carry starts from the right place).
@@ -611,11 +613,29 @@ namespace Piggyback
 			return false;
 		}
 		// Nothing is reset here: the springs carry on from where they are, so changing the values
-		// while carrying (an MCM slider) is smooth. Negative means off; very long is capped.
-		it->second.moveLag = std::clamp(a_moveLag, 0.0f, kMaxFollowLag);
-		it->second.turnLag = std::clamp(a_turnLag, 0.0f, kMaxFollowLag);
+		// while carrying (an MCM slider) is smooth. Negative (or not a number) means off; there is no
+		// upper bound, the consumer decides.
+		it->second.moveLag = std::isfinite(a_moveLag) ? (std::max)(a_moveLag, 0.0f) : 0.0f;
+		it->second.turnLag = std::isfinite(a_turnLag) ? (std::max)(a_turnLag, 0.0f) : 0.0f;
 		SKSE::log::info("SetFollowLag: pet {:08X} move={:.2f}s turn={:.2f}s",
 			a_pet->GetFormID(), it->second.moveLag, it->second.turnLag);
+		return true;
+	}
+
+	bool SetFollowMaxDistance(RE::Actor* a_pet, float a_maxDistance)
+	{
+		if (!a_pet) {
+			return false;
+		}
+		std::lock_guard lock(g_mutex);
+		auto it = g_attached.find(a_pet->GetFormID());
+		if (it == g_attached.end() || it->second.detaching) {
+			return false;
+		}
+		it->second.maxLagDistance =
+			std::isfinite(a_maxDistance) ? (std::max)(a_maxDistance, 0.0f) : 0.0f;
+		SKSE::log::info("SetFollowMaxDistance: pet {:08X} max={:.0f} (0 = no limit)",
+			a_pet->GetFormID(), it->second.maxLagDistance);
 		return true;
 	}
 
@@ -800,12 +820,12 @@ namespace Piggyback
 					CriticalSpring(err.y, data.lagVel.y, travel.y / step, smoothTime, step, trailing);
 					CriticalSpring(err.z, data.lagVel.z, travel.z / step, smoothTime, step, trailing);
 
-					// Leash: never further than kMaxLagDistance from the spot. When it pulls, the part
-					// of the velocity heading further out is dropped, so the rider slides along the
-					// leash instead of pressing against it.
-					const float maxGap = kMaxLagDistance * data.hostScale;
+					// Leash, if the consumer set one: never further than maxLagDistance from the spot.
+					// When it pulls, the part of the velocity heading further out is dropped, so the
+					// rider slides along the leash instead of pressing against it.
+					const float maxGap = data.maxLagDistance * data.hostScale;
 					const float gap = err.Length();
-					if (gap > maxGap) {
+					if (data.maxLagDistance > 0.0f && gap > maxGap) {
 						const RE::NiPoint3 dir = err / gap;
 						err = dir * maxGap;
 						const RE::NiPoint3 relVel = data.lagVel - travel / step;
@@ -920,9 +940,9 @@ namespace Piggyback
 					pet->IsInRagdollState());
 				// Only when a lag is in play, so a 1.1-style attachment logs exactly what it used to.
 				if (data.moveLag > 0.0f || data.turnLag > 0.0f || data.lagActive) {
-					SKSE::log::info("[lag] mode={} move={:.2f}s turn={:.2f}s | gap={:.1f} (max {:.0f}) | yaw behind by {:.1f}deg",
+					SKSE::log::info("[lag] mode={} move={:.2f}s turn={:.2f}s | gap={:.1f} (max {:.0f}, 0 = none) | yaw behind by {:.1f}deg",
 						kLagMode == 2 ? "trailing" : "inertia", data.moveLag, data.turnLag,
-						lagGap, kMaxLagDistance * data.hostScale,
+						lagGap, data.maxLagDistance * data.hostScale,
 						WrapPi(rawYaw - hostYaw) * 57.2957795f);
 				}
 			}
@@ -1011,6 +1031,11 @@ namespace Piggyback
 			return SetFollowLag(a_pet, a_moveLag, a_turnLag);
 		}
 
+		bool PapyrusSetFollowMaxDistance(RE::StaticFunctionTag*, RE::Actor* a_pet, float a_maxDistance)
+		{
+			return SetFollowMaxDistance(a_pet, a_maxDistance);
+		}
+
 		std::int32_t PapyrusGetVersion(RE::StaticFunctionTag*)
 		{
 			return GetVersion();
@@ -1025,8 +1050,9 @@ namespace Piggyback
 		a_vm->RegisterFunction("IsAttached", "Piggyback", PapyrusIsAttached);
 		a_vm->RegisterFunction("IsInstalled", "Piggyback", PapyrusIsInstalled);
 		a_vm->RegisterFunction("SetFollowLag", "Piggyback", PapyrusSetFollowLag);
+		a_vm->RegisterFunction("SetFollowMaxDistance", "Piggyback", PapyrusSetFollowMaxDistance);
 		a_vm->RegisterFunction("GetVersion", "Piggyback", PapyrusGetVersion);
-		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / GetVersion.");
+		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / SetFollowMaxDistance / GetVersion.");
 #if defined(PIGGYBACK_TEST_LAG)
 		SKSE::log::warn("TEST BUILD: follow lag forced on every attachment ({}, move {:.2f}s, turn {:.2f}s). Not for release.",
 			kLagMode == 2 ? "trailing" : "inertia", kDefaultMoveLag, kDefaultTurnLag);

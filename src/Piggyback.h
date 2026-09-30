@@ -37,7 +37,12 @@ namespace Piggyback
 	// it. Takes effect smoothly, including while carrying. Returns false if the pet is not attached.
 	bool SetFollowLag(RE::Actor* a_pet, float a_moveLag, float a_turnLag);
 
-	// DLL version as a single number: major * 10000 + minor * 100 + patch (10200 for 1.2.0). Lets a
+	// Follow lag (1.2.1), opt-in: how far the rider may fall behind its spot while lagging, in units
+	// at standard build (scaled with the host like the offset). 0 = no limit, the default. Belongs to
+	// the current attachment. Returns false if the pet is not attached.
+	bool SetFollowMaxDistance(RE::Actor* a_pet, float a_maxDistance);
+
+	// DLL version as a single number: major * 10000 + minor * 100 + patch (10201 for 1.2.1). Lets a
 	// consumer check that a function exists before calling it; IsInstalled stays the presence probe.
 	std::int32_t GetVersion();
 

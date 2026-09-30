@@ -4,6 +4,22 @@ All notable changes to Piggyback are documented here.
 This project follows [Semantic Versioning](https://semver.org/): the Papyrus API is the public
 contract, and no released function ever changes signature.
 
+## [1.2.1] - 2026-09-30
+
+The follow lag's limits are now the mod's choice.
+
+### Changed
+
+- **No upper limit on the follow lag.** `SetFollowLag` no longer caps the delay at 2 seconds.
+- **No distance limit by default.** In 1.2.0 the carried actor could never trail more than 150 units
+  behind. That limit is now off by default and set per actor with the new
+  **`SetFollowMaxDistance(akPet, afMaxDistance)`** (units at standard build, scaled to the host;
+  `0` = no limit).
+- `GetVersion()` returns `10201`.
+
+Unchanged: a teleport of the host (fast travel, load door) still resets the delay, so the actor never
+flies across the map. The five original functions and `SetFollowLag` keep their signatures.
+
 ## [1.2.0] - 2026-09-30
 
 A new, optional feature for mod authors. Nothing changes for existing mods: without the new call,

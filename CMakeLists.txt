@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(Piggyback VERSION 1.2.0 LANGUAGES CXX)
+project(Piggyback VERSION 1.2.1 LANGUAGES CXX)
 
 # Pin upstream source and its submodules for reproducible builds.
 if(MSVC)

@@ -4,7 +4,7 @@ Everything you need to attach a creature to another actor and keep it there, fra
 
 - [Quick start](#quick-start)
 - [API reference](#api-reference)
-- [Natural follow lag (1.2.0)](#natural-follow-lag)
+- [Natural follow lag (1.2)](#natural-follow-lag)
 - [The coordinate space](#the-coordinate-space)
 - [Rules you must follow](#rules-you-must-follow)
 - [Optional dependency](#treating-piggyback-as-an-optional-dependency)
@@ -55,6 +55,9 @@ bool Function IsInstalled() global native
 ; Since 1.2.0
 bool Function SetFollowLag(Actor akPet, float afMoveLag, float afTurnLag) global native
 int  Function GetVersion() global native
+
+; Since 1.2.1
+bool Function SetFollowMaxDistance(Actor akPet, float afMaxDistance) global native
 ```
 
 ### `Attach(akPet, akHost, asNodeName, afX, afY, afZ, abMatchRotation)`
@@ -113,18 +116,30 @@ host, it eases into the movement and settles without bouncing. See
 | `afMoveLag` | Response time of the **position**, in seconds. `0` = off |
 | `afTurnLag` | Response time of the **heading**, in seconds. `0` = off (the default ~125 ms smoothing) |
 
-Values are clamped to 0-2 seconds. Returns `false` if the actor is not attached. The setting belongs to
+Negative values mean `0`. There is **no upper limit**: your mod decides. Returns `false` if the actor
+is not attached. The setting belongs to
 the current attachment: **call it again after every `Attach`**.
+
+### `SetFollowMaxDistance(akPet, afMaxDistance)` — since 1.2.1
+
+How far the carried actor may fall behind its spot while the follow lag is active, in units at
+standard build (scaled to the host, like the offset). `0` = no limit, which is the default. Useful with
+long delays or a fast host, to keep the actor from trailing too far. The setting belongs to the current
+attachment: **call it again after every `Attach`**. Returns `false` if the actor is not attached.
 
 ### `GetVersion()` — since 1.2.0
 
-The installed DLL version as one number: `major * 10000 + minor * 100 + patch`, so `10200` for 1.2.0.
+The installed DLL version as one number: `major * 10000 + minor * 100 + patch`, so `10201` for 1.2.1.
 Returns `0` when the DLL is missing **or older than 1.2.0** (the function does not exist there). Use it
 before calling anything added after 1.1:
 
 ```papyrus
-if Piggyback.GetVersion() >= 10200
+int version = Piggyback.GetVersion()
+if version >= 10200
     Piggyback.SetFollowLag(myPet, 0.4, 0.4)
+endif
+if version >= 10201
+    Piggyback.SetFollowMaxDistance(myPet, 200.0)
 endif
 ```
 
@@ -159,7 +174,7 @@ endif
 ```
 
 **Choosing values.** Around `0.25` the effect is subtle; from `0.5` it is clearly visible; beyond `1.0`
-the rider reads as sluggish. The best value depends on the creature and its animations, so exposing
+the rider reads as sluggish. There is no maximum: pick what suits your creature. The best value depends on the creature and its animations, so exposing
 two sliders in your MCM is a good idea: the change applies smoothly while the actor is carried, there
 is no need to detach or reload.
 
@@ -170,8 +185,10 @@ they do not all react on the same frame. That alone makes a group look far less 
 
 - `0` for both restores the exact behaviour of earlier versions. Switching the position lag off while
   carried eases the rider back onto its spot instead of snapping it there.
-- The rider never falls further behind than about 150 units (scaled to the host's build), however
-  fast the host goes.
+- By default, nothing limits how far the rider can fall behind: with a long delay and a fast host,
+  it can trail far back before catching up. If that is not what you want, set a limit with
+  [`SetFollowMaxDistance`](#setfollowmaxdistanceakpet-afmaxdistance--since-121) (1.2.0 used a fixed
+  150 units).
 - A teleport of the host (fast travel, load door, `coc`) resets the delay: the rider does not fly
   across the map.
 - The setting is not saved, like the attachment itself. Re-apply it whenever you re-attach, including
@@ -435,7 +452,7 @@ at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
 The vcpkg baseline is pinned separately. The build script and triplet select the
 same compiler toolset.
 
-## Compatibility — 1.2.0
+## Compatibility — 1.2.1
 
 Tested on **Skyrim Steam 1.7.104** with **SKSE 2.3.1** and the matching Address Library
 database. Piggyback is built with CommonLibSSE-NG for all runtimes, but other versions
