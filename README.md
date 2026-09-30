@@ -34,6 +34,10 @@ bool Function SetOffset(Actor akPet, float afX, float afY, float afZ) global nat
 bool Function Detach(Actor akPet) global native
 bool Function IsAttached(Actor akPet) global native
 bool Function IsInstalled() global native
+
+; Since 1.2.0
+bool Function SetFollowLag(Actor akPet, float afMoveLag, float afTurnLag) global native
+int  Function GetVersion() global native
 ```
 
 ```papyrus
@@ -45,6 +49,10 @@ endif
 
 `IsInstalled()` returns `false` when the DLL is absent (the native is simply never registered), which
 lets your mod treat Piggyback as an **optional** dependency and hide the feature cleanly.
+
+`SetFollowLag()` (1.2.0) gives the rider a natural delay on moves and turns instead of reacting on the
+very same frame. `GetVersion()` returns `10200` for 1.2.0, so you can check a function exists before
+calling it.
 
 Full details, coordinate space, rules and examples: **[DOCUMENTATION.md](DOCUMENTATION.md)**.
 
@@ -64,10 +72,9 @@ $env:VCPKG_ROOT = "D:\Tools\vcpkg"
 
 The default build does not modify the game or mod manager. Its DLL is written to
 `build/skyrim-1.7-release/Piggyback.dll`. Use `-Config Debug` for a debug build.
-The DLL build does not compile Papyrus. The API is unchanged, so a local test can
-retain `Piggyback.pex` from the installed release. To package from source, compile
-`Scripts/Source/Piggyback.psc` with the Creation Kit Papyrus compiler and the
-matching game script imports.
+The DLL build does not compile Papyrus. Since 1.2.0 added functions, the DLL and
+`Piggyback.pex` must come from the same version: compile `Scripts/Source/Piggyback.psc`
+with the Creation Kit Papyrus compiler and the matching game script imports.
 
 CommonLibSSE-NG **7.5.1** is fetched from
 [alandtse's maintained repository](https://github.com/alandtse/CommonLibSSE-NG)
@@ -75,11 +82,12 @@ at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
 The vcpkg baseline is pinned separately. The build script and triplet select the
 same compiler toolset.
 
-## Compatibility — 1.1.1
+## Compatibility — 1.2.0
 
-Requires **Skyrim Steam 1.7.104**, **SKSE 2.3.1**, and the matching Address Library
-database. In-game loading and carrying were confirmed on this runtime.
-Other Skyrim versions, including 1.7.100, and VR have not been revalidated.
+Tested on **Skyrim Steam 1.7.104** with **SKSE 2.3.1** and the matching Address Library
+database. Piggyback is built with CommonLibSSE-NG for all runtimes, but other versions
+(1.5.97, 1.6.x, 1.7.100) and VR have not been tested. Feedback is welcome.
+For Skyrim 1.6.1170, Piggyback 1.1.0 remains available.
 
 ---
 

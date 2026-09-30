@@ -31,6 +31,16 @@ namespace Piggyback
 	// cleanly hide a feature that depends on Piggyback instead of offering something that will fail.
 	bool IsInstalled();
 
+	// Follow lag (1.2.0), opt-in: a_moveLag and a_turnLag are response times in seconds for the
+	// position and the heading (0 = off, the 1.1 behaviour). The rider eases into moves and turns
+	// instead of reacting on the same frame. Belongs to the current attachment: a new Attach resets
+	// it. Takes effect smoothly, including while carrying. Returns false if the pet is not attached.
+	bool SetFollowLag(RE::Actor* a_pet, float a_moveLag, float a_turnLag);
+
+	// DLL version as a single number: major * 10000 + minor * 100 + patch (10200 for 1.2.0). Lets a
+	// consumer check that a function exists before calling it; IsInstalled stays the presence probe.
+	std::int32_t GetVersion();
+
 	// Called EVERY FRAME from the PlayerCharacter::Update hook (see hook.cpp).
 	// a_delta: time elapsed since the previous frame, used by the transitions.
 	void UpdateAll(float a_delta);

@@ -4,6 +4,7 @@ Everything you need to attach a creature to another actor and keep it there, fra
 
 - [Quick start](#quick-start)
 - [API reference](#api-reference)
+- [Natural follow lag (1.2.0)](#natural-follow-lag)
 - [The coordinate space](#the-coordinate-space)
 - [Rules you must follow](#rules-you-must-follow)
 - [Optional dependency](#treating-piggyback-as-an-optional-dependency)
@@ -50,6 +51,10 @@ bool Function SetOffset(Actor akPet, float afX, float afY, float afZ) global nat
 bool Function Detach(Actor akPet) global native
 bool Function IsAttached(Actor akPet) global native
 bool Function IsInstalled() global native
+
+; Since 1.2.0
+bool Function SetFollowLag(Actor akPet, float afMoveLag, float afTurnLag) global native
+int  Function GetVersion() global native
 ```
 
 ### `Attach(akPet, akHost, asNodeName, afX, afY, afZ, abMatchRotation)`
@@ -85,8 +90,8 @@ its normal AI. Returns `false` if it was not attached.
 
 **This is asynchronous.** The call returns straight away; the transition itself takes about 0.8
 seconds, and Piggyback keeps placing the actor for its duration. Do not give the actor back to its AI
-before that (see [rules](#rules-you-must-follow)). Collision is handed back halfway through, so the
-actor is solid again slightly before it is fully released.
+before that (see [rules](#rules-you-must-follow)). Collision is handed back at the start of the
+transition, so the actor settles onto the ground as a normal, solid actor.
 
 ### `IsAttached(akPet)`
 
@@ -95,6 +100,84 @@ actor is solid again slightly before it is fully released.
 ### `IsInstalled()`
 
 Always `true` when the DLL is present. See [optional dependency](#treating-piggyback-as-an-optional-dependency).
+
+### `SetFollowLag(akPet, afMoveLag, afTurnLag)` — since 1.2.0
+
+Gives the carried actor a natural delay: instead of moving and turning on the very same frame as the
+host, it eases into the movement and settles without bouncing. See
+[natural follow lag](#natural-follow-lag).
+
+| Parameter | Meaning |
+|---|---|
+| `akPet` | An actor currently attached |
+| `afMoveLag` | Response time of the **position**, in seconds. `0` = off |
+| `afTurnLag` | Response time of the **heading**, in seconds. `0` = off (the default ~125 ms smoothing) |
+
+Values are clamped to 0-2 seconds. Returns `false` if the actor is not attached. The setting belongs to
+the current attachment: **call it again after every `Attach`**.
+
+### `GetVersion()` — since 1.2.0
+
+The installed DLL version as one number: `major * 10000 + minor * 100 + patch`, so `10200` for 1.2.0.
+Returns `0` when the DLL is missing **or older than 1.2.0** (the function does not exist there). Use it
+before calling anything added after 1.1:
+
+```papyrus
+if Piggyback.GetVersion() >= 10200
+    Piggyback.SetFollowLag(myPet, 0.4, 0.4)
+endif
+```
+
+`IsInstalled()` remains the way to check that Piggyback is present at all.
+
+---
+
+## Natural follow lag
+
+By default the carried actor is glued to its anchor: when the host starts, stops or jumps, the rider
+does the same thing on the same frame. That is precise, but it can look mechanical, especially for a
+creature that is supposed to have a mind of its own, or several followers moving in formation.
+
+`SetFollowLag` adds a delay to how the rider reacts:
+
+- **`afMoveLag`** delays the **position**. The rider eases into a start, drifts slightly on a stop or a
+  landing, then settles back into place.
+- **`afTurnLag`** delays the **heading**. The rider turns a moment after the host and catches up
+  smoothly.
+
+The rider still sits exactly where you placed it while the host moves steadily in a straight line: the
+delay only shows **when something changes** (starting, stopping, turning, jumping, landing). Your
+offsets keep their meaning.
+
+```papyrus
+if Piggyback.Attach(myPet, Game.GetPlayer(), "NPC Spine2 [Spn2]", 18.0, -60.0, -90.0, true)
+    myPet.SetDontMove(true)
+    if Piggyback.GetVersion() >= 10200
+        Piggyback.SetFollowLag(myPet, 0.5, 0.5)
+    endif
+endif
+```
+
+**Choosing values.** Around `0.25` the effect is subtle; from `0.5` it is clearly visible; beyond `1.0`
+the rider reads as sluggish. The best value depends on the creature and its animations, so exposing
+two sliders in your MCM is a good idea: the change applies smoothly while the actor is carried, there
+is no need to detach or reload.
+
+**Several followers.** Give each one a slightly different value (for example `0.45`, `0.5`, `0.55`) so
+they do not all react on the same frame. That alone makes a group look far less robotic.
+
+**Things worth knowing:**
+
+- `0` for both restores the exact behaviour of earlier versions. Switching the position lag off while
+  carried eases the rider back onto its spot instead of snapping it there.
+- The rider never falls further behind than about 150 units (scaled to the host's build), however
+  fast the host goes.
+- A teleport of the host (fast travel, load door, `coc`) resets the delay: the rider does not fly
+  across the map.
+- The setting is not saved, like the attachment itself. Re-apply it whenever you re-attach, including
+  after a save is loaded.
+- A value of `0` for `afTurnLag` does not remove all smoothing: the heading keeps the fixed ~125 ms lag
+  introduced in 1.1.0, which prevents the rider from being re-placed in one frame on a fast mouse turn.
 
 ---
 
@@ -125,7 +208,8 @@ actual host. The same values therefore read the same on a slight Breton and on a
 keep their meaning whatever body the player is on.
 
 The scale is measured from the host's own geometry, once, when the pet is attached: the height of the
-anchor node above the host's feet, divided by 100 (a standard humanoid). `GetScale()` is deliberately
+anchor node above the host's feet, divided by 89.6 (the height of `NPC Spine2 [Spn2]` on a standard
+humanoid). `GetScale()` is deliberately
 **not** used, because it does not reflect the real size depending on how the character was resized
 (RaceMenu, a race mod, the `setscale` console command). The result is clamped to 0.5x to 2x so an
 unusual anchor node or a non-humanoid host cannot produce an absurd offset.
@@ -207,6 +291,9 @@ see a broken option.
 > **Note:** your scripts still need `Piggyback.psc` **at compile time**, even for an optional
 > dependency. Only the runtime is optional.
 
+Functions added after the first release are guarded the same way, with `GetVersion()`: on an older
+DLL they are not registered, and calling one only writes an error to the Papyrus log.
+
 ---
 
 ## Complete example
@@ -282,8 +369,8 @@ EndFunction
   the floor when released. Sidestepping the rider around obstacles is the planned answer; it is not
   implemented yet.
 - **The rider turns with a slight lag.** Its heading chases the host's over roughly 125 ms rather than
-  snapping to it, so a fast mouse turn reads as a sweep instead of a jump. This is intentional; the
-  rate is not currently configurable.
+  snapping to it, so a fast mouse turn reads as a sweep instead of a jump. Since 1.2.0, a longer and
+  more natural delay can be set with [`SetFollowLag`](#natural-follow-lag).
 - **Animations depend on the creature.** Movement and sprint events are forwarded, but a creature whose
   animation graph does not use them will stay in its idle. Graph *variables* such as `Speed` are set too,
   but on many creatures they do not drive locomotion, only the events do.
@@ -314,6 +401,10 @@ jumps and on braking out of a run, or as a constant drift when the rider was tun
 65 units. If you still see it on 1.1.0 or later, attach your log — the flag is re-applied every frame,
 so it should hold across cell changes.
 
+**`SetFollowLag` or `GetVersion` "not found"**
+The installed DLL is older than 1.2.0, or an old `Piggyback.pex` is overriding the new one. Guard the
+call with `GetVersion() >= 10200` and check there is only one `Piggyback.pex` in your load order.
+
 **Nothing happens at all**
 Check `Documents\My Games\Skyrim Special Edition\SKSE\Piggyback.log`. On startup it lists the registered
 functions. If that line is missing, the DLL did not load: check SKSE and Address Library.
@@ -334,10 +425,9 @@ $env:VCPKG_ROOT = "D:\Tools\vcpkg"
 
 The default build does not modify the game or mod manager. Its DLL is written to
 `build/skyrim-1.7-release/Piggyback.dll`. Use `-Config Debug` for a debug build.
-The DLL build does not compile Papyrus. The API is unchanged, so a local test can
-retain `Piggyback.pex` from the installed release. To package from source, compile
-`Scripts/Source/Piggyback.psc` with the Creation Kit Papyrus compiler and the
-matching game script imports.
+The DLL build does not compile Papyrus. Since 1.2.0 added functions, the DLL and
+`Piggyback.pex` must come from the same version: compile `Scripts/Source/Piggyback.psc`
+with the Creation Kit Papyrus compiler and the matching game script imports.
 
 CommonLibSSE-NG **7.5.1** is fetched from
 [alandtse's maintained repository](https://github.com/alandtse/CommonLibSSE-NG)
@@ -345,13 +435,15 @@ at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
 The vcpkg baseline is pinned separately. The build script and triplet select the
 same compiler toolset.
 
-## Compatibility — 1.1.1
+## Compatibility — 1.2.0
 
-Requires **Skyrim Steam 1.7.104**, **SKSE 2.3.1**, and the matching Address Library
-database. In-game loading and carrying were confirmed on this runtime.
-Other Skyrim versions, including 1.7.100, and VR have not been revalidated.
+Tested on **Skyrim Steam 1.7.104** with **SKSE 2.3.1** and the matching Address Library
+database. Piggyback is built with CommonLibSSE-NG for all runtimes, but other versions
+(1.5.97, 1.6.x, 1.7.100) and VR have not been tested. Feedback is welcome.
+
+For Skyrim 1.6.1170, Piggyback 1.1.0 remains available.
 
 ## License
 
-The 1.1.1 development line is GPL-3.0-or-later. See LICENSE, COPYING.txt and
+Since 1.1.1, Piggyback is GPL-3.0-or-later. See LICENSE, COPYING.txt and
 THIRD-PARTY-NOTICES.md. Previously published releases retain their original terms.

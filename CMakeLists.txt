@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(Piggyback VERSION 1.1.1 LANGUAGES CXX)
+project(Piggyback VERSION 1.2.0 LANGUAGES CXX)
 
 # Pin upstream source and its submodules for reproducible builds.
 if(MSVC)
@@ -24,6 +24,17 @@ include(cmake/sourcelist.cmake)
 add_commonlibsse_plugin(${PROJECT_NAME} AUTHOR "Kroosstiich" SOURCES ${headers} ${sources})
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
 target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h)
+
+# Test builds only: force the follow lag on every attachment so its feel can be judged in game
+# with any consumer mod. Never set for a release.
+set(PIGGYBACK_TEST_LAG "" CACHE STRING "Test builds only: inertia or trailing")
+if(PIGGYBACK_TEST_LAG STREQUAL "inertia")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE PIGGYBACK_TEST_LAG=1)
+elseif(PIGGYBACK_TEST_LAG STREQUAL "trailing")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE PIGGYBACK_TEST_LAG=2)
+elseif(NOT PIGGYBACK_TEST_LAG STREQUAL "")
+    message(FATAL_ERROR "PIGGYBACK_TEST_LAG must be empty, inertia or trailing")
+endif()
 
 # Build locally by default. Deployment is an explicit opt-in.
 set(PIGGYBACK_OUTPUT_FOLDER "" CACHE PATH "Optional mod directory for DLL deployment")

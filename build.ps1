@@ -2,12 +2,14 @@
 <#
 Builds Piggyback without changing the game or a mod manager installation.
 Set VCPKG_ROOT and optionally VS_PATH. Dependencies are pinned in CMake and vcpkg.
-The Papyrus API is unchanged; use the existing Piggyback.pex when packaging.
+Piggyback.pex is compiled separately from Scripts/Source/Piggyback.psc.
 #>
 param(
     [ValidateSet("Release", "Debug")][string]$Config = "Release",
     [string]$OutputFolder = "",
-    [ValidateRange(1, 32)][int]$Jobs = 4
+    [ValidateRange(1, 32)][int]$Jobs = 4,
+    # Test builds only: force the follow lag on every attachment. Built in a separate folder.
+    [ValidateSet("", "inertia", "trailing")][string]$TestLag = ""
 )
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
@@ -31,8 +33,9 @@ foreach ($line in $compilerEnv) {
 }
 if (-not $env:VCPKG_ROOT) { throw "Set VCPKG_ROOT to a bootstrapped vcpkg checkout." }
 $env:VCPKG_MAX_CONCURRENCY = "$Jobs"
-$binaryDir = Join-Path $ProjectRoot "build\skyrim-1.7-$($Config.ToLower())"
-& $cmake -S $ProjectRoot -B $binaryDir -G Ninja "-DCMAKE_BUILD_TYPE=$Config" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" "-DVCPKG_TARGET_TRIPLET=x64-windows-skse" "-DVCPKG_HOST_TRIPLET=x64-windows-skse" "-DVCPKG_OVERLAY_TRIPLETS=$ProjectRoot/cmake" "-DPIGGYBACK_OUTPUT_FOLDER=$OutputFolder"
+$suffix = if ($TestLag) { "-test-$TestLag" } else { "" }
+$binaryDir = Join-Path $ProjectRoot "build\skyrim-1.7-$($Config.ToLower())$suffix"
+& $cmake -S $ProjectRoot -B $binaryDir -G Ninja "-DCMAKE_BUILD_TYPE=$Config" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" "-DVCPKG_TARGET_TRIPLET=x64-windows-skse" "-DVCPKG_HOST_TRIPLET=x64-windows-skse" "-DVCPKG_OVERLAY_TRIPLETS=$ProjectRoot/cmake" "-DPIGGYBACK_OUTPUT_FOLDER=$OutputFolder" "-DPIGGYBACK_TEST_LAG=$TestLag"
 if ($LASTEXITCODE -ne 0) { throw "CMake configuration failed ($LASTEXITCODE)." }
 & $cmake --build $binaryDir --parallel $Jobs
 if ($LASTEXITCODE -ne 0) { throw "Compilation failed ($LASTEXITCODE)." }

@@ -29,3 +29,17 @@ bool Function IsAttached(Actor akPet) global native
 ; registered and Papyrus returns false (the default) - so a consumer mod can cleanly hide a feature that
 ; depends on Piggyback instead of offering something that will fail.
 bool Function IsInstalled() global native
+
+; --- Added in 1.2.0. Check GetVersion() >= 10200 before calling these: on an older DLL they are not
+; registered, and the call only logs a Papyrus error and returns the default.
+
+; Follow lag: afMoveLag and afTurnLag are response times in seconds for the position and the heading
+; (0 = off, the default). The pet eases into moves and turns instead of reacting on the very same frame,
+; then settles without bouncing. 0.25 is subtle, 0.5 clearly visible; capped at 2.0. Takes effect smoothly,
+; even while carrying, so it can be driven by an MCM slider. The setting belongs to the attachment:
+; call it again after every Attach. Returns false if akPet is not attached.
+bool Function SetFollowLag(Actor akPet, float afMoveLag, float afTurnLag) global native
+
+; Version of the installed DLL as one number: major * 10000 + minor * 100 + patch (10200 for 1.2.0).
+; Returns 0 when Piggyback.dll is absent or older than 1.2.0.
+int Function GetVersion() global native

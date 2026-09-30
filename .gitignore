@@ -11,3 +11,5 @@ vcpkg_installed/
 # Safety net: internal working documents never belong in the public repository.
 # They live outside this folder, but this makes an accidental copy harmless.
 docs/
+.claude/
+CLAUDE.md

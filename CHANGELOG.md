@@ -4,6 +4,38 @@ All notable changes to Piggyback are documented here.
 This project follows [Semantic Versioning](https://semver.org/): the Papyrus API is the public
 contract, and no released function ever changes signature.
 
+## [1.2.0] - 2026-09-30
+
+A new, optional feature for mod authors. Nothing changes for existing mods: without the new call,
+Piggyback behaves exactly as before.
+
+### Added
+
+- **Natural follow lag.** `SetFollowLag(akPet, afMoveLag, afTurnLag)` gives the carried actor a delay
+  on its movements and on its turns, in seconds. Instead of reacting on the very same frame as its
+  host, it eases into a start, a stop, a turn or a landing, then settles back into place without
+  bouncing. While the host moves steadily, the actor stays exactly at its configured offset: the delay
+  only shows when something changes. The setting can be changed while the actor is carried, so it
+  works with MCM sliders. Suggested by a player of *Follower Paraglide*.
+  - The actor never falls more than about 150 units behind, scaled to the host's build.
+  - A teleport of the host (fast travel, load door) resets the delay instead of dragging the actor
+    across the map.
+  - `0` for both values restores the previous behaviour exactly.
+- **`GetVersion()`** returns the installed version as a single number (`10200` for 1.2.0), so a mod
+  can check that a function exists before calling it. It returns `0` on older versions.
+
+### Changed
+
+- The plugin log adds a `[lag]` line once per second while a follow lag is active.
+- Documentation: new "Natural follow lag" section; the host scale reference (89.6 units) and the
+  moment collision is handed back on release are now described accurately.
+
+### Compatibility
+
+- Tested on Skyrim 1.7.104. Other versions and VR are not tested; feedback is welcome.
+- The five existing functions are unchanged. Mods built against 1.0.0 or later keep working.
+- Update `Piggyback.pex` together with the DLL: the new functions need both.
+
 ## [1.1.1] - 2026-09-11
 
 - Added compatibility with Skyrim Special Edition 1.7.104.

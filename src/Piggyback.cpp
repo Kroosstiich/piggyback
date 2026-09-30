@@ -24,6 +24,45 @@ namespace
 	// enough to turn a snap into a sweep without the rider feeling detached from the host.
 	constexpr float kYawRate = 8.0f;
 
+	// --- Follow lag (1.2.0) ----------------------------------------------------------------------
+	// Opt-in, per attachment, through SetFollowLag. At 0 (the default) the rig behaves exactly as in
+	// 1.1: the rider is glued to the anchor node and only the heading is smoothed, by kYawRate above.
+	//
+	// When enabled, position and heading each chase their target through a critically damped spring:
+	// the rider eases into a move instead of reacting on the very same frame, then settles without
+	// bouncing. That reads as a living thing reacting to its carrier rather than an object bolted on.
+	//
+	// Upper bound for a lag setting, in seconds. Anything longer reads as a rider left behind.
+	constexpr float kMaxFollowLag = 2.0f;
+
+	// The rider never falls further than this from where it should be, in units at standard build
+	// (scaled with the host). Keeps a fast carrier - a sprint, a glide - from leaving it behind.
+	constexpr float kMaxLagDistance = 150.0f;
+
+	// A target that moves further than this in a single frame has not travelled, it has been
+	// teleported (fast travel, load door, coc). The spring is reset instead of flying across the map.
+	constexpr float kTeleportDistance = 400.0f;
+
+	// When the lag is switched off at runtime, the rider eases back onto its spot over this time
+	// instead of snapping there, then the spring is retired.
+	constexpr float kSnapBackLag = 0.08f;
+
+	// TEST BUILDS ONLY (CMake option PIGGYBACK_TEST_LAG): force a lag on every attachment, so the feel
+	// can be judged in game with any consumer mod, untouched. Release builds define neither.
+	//   1 = inertia: the target's velocity is fed forward, so a steady move is followed exactly at the
+	//       configured offset and the lag only shows on changes - starting, stopping, turning, jumping.
+	//   2 = trailing: plain spring, the rider trails further behind the faster the carrier goes
+	//       (distance = speed x lag).
+#if defined(PIGGYBACK_TEST_LAG)
+	constexpr int   kLagMode = PIGGYBACK_TEST_LAG;
+	constexpr float kDefaultMoveLag = 0.30f;
+	constexpr float kDefaultTurnLag = 0.30f;
+#else
+	constexpr int   kLagMode = 1;
+	constexpr float kDefaultMoveLag = 0.0f;
+	constexpr float kDefaultTurnLag = 0.0f;
+#endif
+
 	// How fast the applied offset chases a new one set through SetOffset. Slower than the yaw on
 	// purpose: this is a settings change, and watching the rider slide to its new spot is the point.
 	constexpr float kOffsetRate = 5.0f;
@@ -116,6 +155,22 @@ namespace
 		// Heading actually used by the rig, chasing the host's real yaw with a fixed lag.
 		float smoothedYaw{ 0.0f };
 		bool  yawInitialised{ false };
+
+		// Follow lag, in seconds (0 = off). See SetFollowLag.
+		float moveLag{ kDefaultMoveLag };
+		float turnLag{ kDefaultTurnLag };
+
+		// Heading spring: angular velocity of smoothedYaw, and the host yaw of the previous frame
+		// (always tracked, so switching the turn lag on mid-carry starts from the right place).
+		float yawVel{ 0.0f };
+		float prevRawYaw{ 0.0f };
+
+		// Position spring: where the rider actually is, how fast it moves, and the target of the
+		// previous frame. Inactive until the entry transition has finished.
+		RE::NiPoint3 lagPos;
+		RE::NiPoint3 lagVel;
+		RE::NiPoint3 prevRidePos;
+		bool         lagActive{ false };
 	};
 
 	// NOTE - a post-release trace (position and angles sampled for several seconds after each drop)
@@ -141,6 +196,28 @@ namespace
 	inline float WrapPi(float a_angle)
 	{
 		return std::remainder(a_angle, kTwoPi);
+	}
+
+	// One step of a critically damped spring on a single axis, solved exactly rather than integrated,
+	// so it cannot overshoot numerically or blow up on a long frame.
+	//
+	// a_err is the follower's offset from the target at the start of the step, a_vel the follower's
+	// own velocity; a_targetVel is how fast the target moves during the step. On return a_err is the
+	// offset from the target's NEW position, and a_vel the follower's new velocity.
+	//
+	// Inertia damps the velocity RELATIVE to the target, so a target moving steadily is followed with
+	// no gap at all. Trailing damps the absolute velocity, which leaves the follower a steady
+	// a_targetVel * a_smoothTime behind: the spring's rest point is shifted by that amount.
+	void CriticalSpring(float& a_err, float& a_vel, float a_targetVel, float a_smoothTime, float a_dt, bool a_trailing)
+	{
+		const float omega = 2.0f / a_smoothTime;
+		const float rest = a_trailing ? -2.0f * a_targetVel / omega : 0.0f;
+		const float e0 = a_err - rest;
+		const float v0 = a_vel - a_targetVel;  // rate of change of the offset
+		const float c = v0 + omega * e0;
+		const float decay = std::exp(-omega * a_dt);
+		a_err = rest + (e0 + c * a_dt) * decay;
+		a_vel = a_targetVel + (v0 - omega * c * a_dt) * decay;
 	}
 
 	inline RE::NiPoint3 Lerp(const RE::NiPoint3& a, const RE::NiPoint3& b, float t)
@@ -523,9 +600,37 @@ namespace Piggyback
 		return it != g_attached.end() && !it->second.detaching;
 	}
 
+	bool SetFollowLag(RE::Actor* a_pet, float a_moveLag, float a_turnLag)
+	{
+		if (!a_pet) {
+			return false;
+		}
+		std::lock_guard lock(g_mutex);
+		auto it = g_attached.find(a_pet->GetFormID());
+		if (it == g_attached.end() || it->second.detaching) {
+			return false;
+		}
+		// Nothing is reset here: the springs carry on from where they are, so changing the values
+		// while carrying (an MCM slider) is smooth. Negative means off; very long is capped.
+		it->second.moveLag = std::clamp(a_moveLag, 0.0f, kMaxFollowLag);
+		it->second.turnLag = std::clamp(a_turnLag, 0.0f, kMaxFollowLag);
+		SKSE::log::info("SetFollowLag: pet {:08X} move={:.2f}s turn={:.2f}s",
+			a_pet->GetFormID(), it->second.moveLag, it->second.turnLag);
+		return true;
+	}
+
 	bool IsInstalled()
 	{
 		return true;  // this call resolving at all proves the DLL is loaded
+	}
+
+	std::int32_t GetVersion()
+	{
+		// Read from the plugin declaration, like the startup log, so it can never disagree with it.
+		const auto version = SKSE::PluginDeclaration::GetSingleton()->GetVersion();
+		return static_cast<std::int32_t>(version.major()) * 10000 +
+		       static_cast<std::int32_t>(version.minor()) * 100 +
+		       static_cast<std::int32_t>(version.patch());
 	}
 
 	void UpdateAll(float a_delta)
@@ -639,13 +744,24 @@ namespace Piggyback
 			// at 144 fps. Both WrapPi calls matter: the inner one takes the short way round the seam,
 			// the outer one keeps the stored angle from drifting out of range over a long session.
 			const float rawYaw = host->GetAngleZ();
+			const float step = a_delta;  // the spring is solved exactly, so even a long frame stays stable
 			if (!data.yawInitialised) {
 				data.smoothedYaw = rawYaw;  // start on the truth, so there is no catch-up on frame one
+				data.yawVel = 0.0f;
 				data.yawInitialised = true;
+			} else if (data.turnLag > 0.0f && step > 0.0f) {
+				// Turn lag: the same spring as the position, on the angle. The error is wrapped so a turn
+				// across the +/-180 degree seam goes the short way round.
+				const float yawSpeed = WrapPi(rawYaw - data.prevRawYaw) / step;
+				float       err = WrapPi(data.smoothedYaw - data.prevRawYaw);
+				CriticalSpring(err, data.yawVel, yawSpeed, data.turnLag, step, kLagMode == 2);
+				data.smoothedYaw = WrapPi(rawYaw + err);
 			} else {
 				const float k = 1.0f - std::exp(-kYawRate * a_delta);
 				data.smoothedYaw = WrapPi(data.smoothedYaw + WrapPi(rawYaw - data.smoothedYaw) * k);
+				data.yawVel = 0.0f;
 			}
+			data.prevRawYaw = rawYaw;
 			const float hostYaw = data.smoothedYaw;
 
 			// The offset is scaled to the host's build, so one setting reads the same on a slight
@@ -656,6 +772,59 @@ namespace Piggyback
 			effOffset.y *= data.distScale * data.hostScale;
 			effOffset.z *= data.hostScale;
 			RE::NiPoint3 ridePos = ComputeTarget(node->world.translate, hostYaw, effOffset);
+
+			// Move lag: the rider chases ridePos through the spring instead of sitting on it. Only once
+			// the entry transition is over (the arc has its own easing) and never on the way down.
+			// Still runs, briefly, after the lag has been switched off, to ease the rider back onto its
+			// spot rather than snapping it there.
+			const bool wantMoveLag = data.moveLag > 0.0f && !data.detaching && data.blend >= 1.0f;
+			if (wantMoveLag && !data.lagActive) {
+				data.lagPos = ridePos;
+				data.lagVel = RE::NiPoint3{};
+				data.prevRidePos = ridePos;
+				data.lagActive = true;
+			}
+			float lagGap = 0.0f;
+			if (data.lagActive && (data.detaching || data.blend < 1.0f)) {
+				data.lagActive = false;
+			} else if (data.lagActive && step > 0.0f) {
+				const RE::NiPoint3 travel = ridePos - data.prevRidePos;
+				if (travel.Length() > kTeleportDistance) {
+					data.lagPos = ridePos;  // teleported: start again from the new spot
+					data.lagVel = RE::NiPoint3{};
+				} else {
+					const float  smoothTime = data.moveLag > 0.0f ? data.moveLag : kSnapBackLag;
+					const bool   trailing = kLagMode == 2;
+					RE::NiPoint3 err = data.lagPos - data.prevRidePos;
+					CriticalSpring(err.x, data.lagVel.x, travel.x / step, smoothTime, step, trailing);
+					CriticalSpring(err.y, data.lagVel.y, travel.y / step, smoothTime, step, trailing);
+					CriticalSpring(err.z, data.lagVel.z, travel.z / step, smoothTime, step, trailing);
+
+					// Leash: never further than kMaxLagDistance from the spot. When it pulls, the part
+					// of the velocity heading further out is dropped, so the rider slides along the
+					// leash instead of pressing against it.
+					const float maxGap = kMaxLagDistance * data.hostScale;
+					const float gap = err.Length();
+					if (gap > maxGap) {
+						const RE::NiPoint3 dir = err / gap;
+						err = dir * maxGap;
+						const RE::NiPoint3 relVel = data.lagVel - travel / step;
+						const float        outward = relVel.Dot(dir);
+						if (outward > 0.0f) {
+							data.lagVel -= dir * outward;
+						}
+					}
+					data.lagPos = ridePos + err;
+				}
+				data.prevRidePos = ridePos;
+				lagGap = (data.lagPos - ridePos).Length();
+
+				if (data.moveLag <= 0.0f && lagGap < 0.5f) {
+					data.lagActive = false;  // lag switched off and the rider is home: retire the spring
+				} else {
+					ridePos = data.lagPos;
+				}
+			}
 
 			// Vertical guard (from "she jitters when I crouch" plus a screenshot of the creature sunk
 			// into the ground). The anchor node drops when the host crouches: a fixed vertical offset
@@ -749,6 +918,13 @@ namespace Piggyback
 					(hostFlags & (1u << 14)) != 0, GetProxyLayer(pet),
 					static_cast<std::uint32_t>(pet->AsActorState()->GetKnockState()),
 					pet->IsInRagdollState());
+				// Only when a lag is in play, so a 1.1-style attachment logs exactly what it used to.
+				if (data.moveLag > 0.0f || data.turnLag > 0.0f || data.lagActive) {
+					SKSE::log::info("[lag] mode={} move={:.2f}s turn={:.2f}s | gap={:.1f} (max {:.0f}) | yaw behind by {:.1f}deg",
+						kLagMode == 2 ? "trailing" : "inertia", data.moveLag, data.turnLag,
+						lagGap, kMaxLagDistance * data.hostScale,
+						WrapPi(rawYaw - hostYaw) * 57.2957795f);
+				}
 			}
 
 			if (data.detaching) {
@@ -829,6 +1005,16 @@ namespace Piggyback
 		{
 			return IsInstalled();
 		}
+
+		bool PapyrusSetFollowLag(RE::StaticFunctionTag*, RE::Actor* a_pet, float a_moveLag, float a_turnLag)
+		{
+			return SetFollowLag(a_pet, a_moveLag, a_turnLag);
+		}
+
+		std::int32_t PapyrusGetVersion(RE::StaticFunctionTag*)
+		{
+			return GetVersion();
+		}
 	}
 
 	bool RegisterPapyrus(RE::BSScript::IVirtualMachine* a_vm)
@@ -838,7 +1024,13 @@ namespace Piggyback
 		a_vm->RegisterFunction("Detach", "Piggyback", PapyrusDetach);
 		a_vm->RegisterFunction("IsAttached", "Piggyback", PapyrusIsAttached);
 		a_vm->RegisterFunction("IsInstalled", "Piggyback", PapyrusIsInstalled);
-		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled.");
+		a_vm->RegisterFunction("SetFollowLag", "Piggyback", PapyrusSetFollowLag);
+		a_vm->RegisterFunction("GetVersion", "Piggyback", PapyrusGetVersion);
+		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / GetVersion.");
+#if defined(PIGGYBACK_TEST_LAG)
+		SKSE::log::warn("TEST BUILD: follow lag forced on every attachment ({}, move {:.2f}s, turn {:.2f}s). Not for release.",
+			kLagMode == 2 ? "trailing" : "inertia", kDefaultMoveLag, kDefaultTurnLag);
+#endif
 		return true;
 	}
 }
