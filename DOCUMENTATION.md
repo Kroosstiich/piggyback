@@ -455,10 +455,11 @@ same compiler toolset.
 ## Compatibility — 1.2.1
 
 Tested on **Skyrim Steam 1.7.104** with **SKSE 2.3.1** and the matching Address Library
-database. Piggyback is built with CommonLibSSE-NG for all runtimes, but other versions
-(1.5.97, 1.6.x, 1.7.100) and VR have not been tested. Feedback is welcome.
+database. **Skyrim 1.6.1170** is reported working by players. Piggyback is built with
+CommonLibSSE-NG for all runtimes, but other versions (1.5.97, 1.7.100) and VR have not been
+tested. Feedback is welcome.
 
-For Skyrim 1.6.1170, Piggyback 1.1.0 remains available.
+Piggyback 1.1.0 remains available for Skyrim 1.6.1170 if you prefer it.
 
 ## License
 
