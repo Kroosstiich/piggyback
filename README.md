@@ -44,6 +44,7 @@ bool Function SetFollowMaxDistance(Actor akPet, float afMaxDistance) global nati
 
 ; Since 1.2.2
 bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
+bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
 ```
 
 ```papyrus
@@ -58,7 +59,8 @@ lets your mod treat Piggyback as an **optional** dependency and hide the feature
 
 `SetFollowLag()` (1.2.0) gives the rider a natural delay on moves and turns instead of reacting on the
 very same frame, and `SetFollowMaxDistance()` (1.2.1) optionally limits how far it may trail.
-`SetTurnSmoothing()` (1.2.2) lets an actor sitting on its host turn exactly with it.
+`SetTurnSmoothing()` (1.2.2) lets an actor sitting on its host turn exactly with it, and
+`SetRotationOffset()` (1.2.2) turns its facing relative to the host's.
 `GetVersion()` returns `10202` for 1.2.2, so you can check a function exists before calling it.
 
 Full details, coordinate space, rules and examples: **[DOCUMENTATION.md](DOCUMENTATION.md)**.

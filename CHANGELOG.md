@@ -12,6 +12,9 @@ contract, and no released function ever changes signature.
   Until now, the ~125 ms lag on turns could not be disabled, which made an actor sitting on its host
   (on its back, in its arms) swing off its spot on fast turns. With `false`, it turns exactly with
   the host. `true` is the default, so existing mods keep their behaviour without any change.
+- **`SetRotationOffset(akPet, afDegrees)`** turns the carried actor's facing relative to its host's,
+  in degrees (`180` = facing the host). Useful for poses that face sideways or backwards, or to
+  correct a slightly turned animation. `0` by default.
 - `GetVersion()` returns `10202`.
 
 ### Fixed

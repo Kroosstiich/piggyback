@@ -149,6 +149,9 @@ namespace
 		// false = the heading follows the host exactly, with no smoothing at all. See SetTurnSmoothing.
 		bool turnSmoothing{ true };
 
+		// Added to the host's heading for the rider's facing, in radians. See SetRotationOffset.
+		float rotationOffset{ 0.0f };
+
 		// Heading spring: angular velocity of smoothedYaw, and the host yaw of the previous frame
 		// (always tracked, so switching the turn lag on mid-carry starts from the right place).
 		float yawVel{ 0.0f };
@@ -640,6 +643,21 @@ namespace Piggyback
 		return true;
 	}
 
+	bool SetRotationOffset(RE::Actor* a_pet, float a_degrees)
+	{
+		if (!a_pet) {
+			return false;
+		}
+		std::lock_guard lock(g_mutex);
+		auto it = g_attached.find(a_pet->GetFormID());
+		if (it == g_attached.end() || it->second.detaching) {
+			return false;
+		}
+		it->second.rotationOffset = std::isfinite(a_degrees) ? WrapPi(a_degrees * kPi / 180.0f) : 0.0f;
+		SKSE::log::info("SetRotationOffset: pet {:08X} {:.1f} deg", a_pet->GetFormID(), a_degrees);
+		return true;
+	}
+
 	void ReleaseAll(const char* a_reason)
 	{
 		std::lock_guard lock(g_mutex);
@@ -1012,7 +1030,7 @@ namespace Piggyback
 			data.hasLastTarget = true;
 
 			if (data.matchRotation) {
-				pet->SetAngle(RE::NiPoint3{ 0.0f, 0.0f, hostYaw });
+				pet->SetAngle(RE::NiPoint3{ 0.0f, 0.0f, WrapPi(hostYaw + data.rotationOffset) });
 			}
 
 			++it;
@@ -1065,6 +1083,11 @@ namespace Piggyback
 			return SetTurnSmoothing(a_pet, a_enabled);
 		}
 
+		bool PapyrusSetRotationOffset(RE::StaticFunctionTag*, RE::Actor* a_pet, float a_degrees)
+		{
+			return SetRotationOffset(a_pet, a_degrees);
+		}
+
 		std::int32_t PapyrusGetVersion(RE::StaticFunctionTag*)
 		{
 			return GetVersion();
@@ -1081,8 +1104,9 @@ namespace Piggyback
 		a_vm->RegisterFunction("SetFollowLag", "Piggyback", PapyrusSetFollowLag);
 		a_vm->RegisterFunction("SetFollowMaxDistance", "Piggyback", PapyrusSetFollowMaxDistance);
 		a_vm->RegisterFunction("SetTurnSmoothing", "Piggyback", PapyrusSetTurnSmoothing);
+		a_vm->RegisterFunction("SetRotationOffset", "Piggyback", PapyrusSetRotationOffset);
 		a_vm->RegisterFunction("GetVersion", "Piggyback", PapyrusGetVersion);
-		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / SetFollowMaxDistance / SetTurnSmoothing / GetVersion.");
+		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / SetFollowMaxDistance / SetTurnSmoothing / SetRotationOffset / GetVersion.");
 		return true;
 	}
 }

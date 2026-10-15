@@ -51,6 +51,12 @@ bool Function SetFollowMaxDistance(Actor akPet, float afMaxDistance) global nati
 ; the host, on its back or in its arms. Call it again after every Attach. Returns false if not attached.
 bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
 
+; Since 1.2.2 (GetVersion() >= 10202). Turns akPet's facing by afDegrees relative to the host's heading
+; (0 by default). Positive = clockwise seen from above (90 = facing the host's right, 180 = facing the
+; host). Only applies when the pet was attached with abMatchRotation = true. Applied at once. Call it
+; again after every Attach. Returns false if akPet is not attached.
+bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
+
 ; Version of the installed DLL as one number: major * 10000 + minor * 100 + patch (10202 for 1.2.2).
 ; Returns 0 when Piggyback.dll is absent or older than 1.2.0.
 int Function GetVersion() global native

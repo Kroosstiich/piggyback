@@ -47,6 +47,11 @@ namespace Piggyback
 	// the host. Belongs to the current attachment. Returns false if the pet is not attached.
 	bool SetTurnSmoothing(RE::Actor* a_pet, bool a_enabled);
 
+	// Rotation offset (1.2.2): degrees added to the host's heading for the rider's facing (0 by
+	// default; positive turns it clockwise seen from above, 180 = facing the host). Only with
+	// matchRotation. Applied at once. Belongs to the current attachment. False if not attached.
+	bool SetRotationOffset(RE::Actor* a_pet, float a_degrees);
+
 	// DLL version as a single number: major * 10000 + minor * 100 + patch (10202 for 1.2.2). Lets a
 	// consumer check that a function exists before calling it; IsInstalled stays the presence probe.
 	std::int32_t GetVersion();

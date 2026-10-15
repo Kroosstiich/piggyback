@@ -61,6 +61,7 @@ bool Function SetFollowMaxDistance(Actor akPet, float afMaxDistance) global nati
 
 ; Since 1.2.2
 bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
+bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
 ```
 
 ### `Attach(akPet, akHost, asNodeName, afX, afY, afZ, abMatchRotation)`
@@ -142,6 +143,19 @@ away: without smoothing, a fast turn moves it across the whole arc around the ho
 
 The setting belongs to the current attachment: **call it again after every `Attach`**. Returns
 `false` if the actor is not attached. Mods that never call it keep the previous behaviour.
+
+### `SetRotationOffset(akPet, afDegrees)` — since 1.2.2
+
+With `abMatchRotation = true`, the carried actor faces the same way as its host. This turns it by
+`afDegrees` from there, around the vertical axis. `0` is the default; positive values turn it
+clockwise seen from above: `90` faces the host's right, `-90` its left, `180` faces the host (a
+carry in the arms, for instance). Use it to correct an animation that is slightly turned, or for a
+pose that faces sideways.
+
+It only changes which way the actor faces, not where it is: the offset still sets the position.
+Applied at once, with no transition. Ignored when the actor was attached with `abMatchRotation =
+false`. The setting belongs to the current attachment: **call it again after every `Attach`**.
+Returns `false` if the actor is not attached.
 
 ### `GetVersion()` — since 1.2.0
 
