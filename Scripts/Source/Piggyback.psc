@@ -60,3 +60,38 @@ bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
 ; Version of the installed DLL as one number: major * 10000 + minor * 100 + patch (10202 for 1.2.2).
 ; Returns 0 when Piggyback.dll is absent or older than 1.2.0.
 int Function GetVersion() global native
+
+; Since 1.2.2. Same as Attach, but akPet first WALKS to a spot afApproachDistance units behind akHost,
+; driven by the game's own AI (pathfinding, real walk/run animations), and only then does the short
+; hop onto the anchor. Without it, Attach glides the pet straight from wherever it stands, which can
+; mean a long leap through the host's body. Gives up waiting after afTimeout seconds and attaches anyway.
+; LATENT: returns only once attached (or refused), so call it from a script that can wait. Do not call
+; SetDontMove(true) on akPet before it returns, or it cannot walk. Returns what Attach returns, or false
+; if either actor is missing or dead.
+bool Function ApproachAndAttach(Actor akPet, Actor akHost, string asNodeName, float afX, float afY, float afZ, bool abMatchRotation = true, float afApproachDistance = 60.0, float afTimeout = 8.0) global
+	if !akPet || !akHost || akPet == akHost || akPet.IsDead() || akHost.IsDead()
+		return false
+	endif
+	akPet.KeepOffsetFromActor(akHost, 0.0, -afApproachDistance, 0.0)
+	float waited = 0.0
+	bool arrived = false
+	while !arrived && waited < afTimeout
+		if akPet.IsDead() || akHost.IsDead() || !akPet.Is3DLoaded()
+			akPet.ClearKeepOffsetFromActor()
+			return false
+		endif
+		; The spot behind the host, recomputed each time since the host may be moving. Skyrim heading:
+		; forward = (sin, cos), angles in degrees.
+		float angle = akHost.GetAngleZ()
+		float dx = akPet.GetPositionX() - (akHost.GetPositionX() - afApproachDistance * Math.Sin(angle))
+		float dy = akPet.GetPositionY() - (akHost.GetPositionY() - afApproachDistance * Math.Cos(angle))
+		if dx * dx + dy * dy <= 900.0 ; within 30 units
+			arrived = true
+		else
+			Utility.Wait(0.1)
+			waited += 0.1
+		endif
+	endwhile
+	akPet.ClearKeepOffsetFromActor()
+	return Attach(akPet, akHost, asNodeName, afX, afY, afZ, abMatchRotation)
+EndFunction

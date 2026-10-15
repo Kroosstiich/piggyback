@@ -61,6 +61,8 @@ lets your mod treat Piggyback as an **optional** dependency and hide the feature
 very same frame, and `SetFollowMaxDistance()` (1.2.1) optionally limits how far it may trail.
 `SetTurnSmoothing()` (1.2.2) lets an actor sitting on its host turn exactly with it, and
 `SetRotationOffset()` (1.2.2) turns its facing relative to the host's.
+`ApproachAndAttach()` (1.2.2) has the actor walk behind the host with the game's AI before the short
+hop onto it, instead of a long leap.
 `GetVersion()` returns `10202` for 1.2.2, so you can check a function exists before calling it.
 
 Full details, coordinate space, rules and examples: **[DOCUMENTATION.md](DOCUMENTATION.md)**.

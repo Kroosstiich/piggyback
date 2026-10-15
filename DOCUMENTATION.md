@@ -62,6 +62,11 @@ bool Function SetFollowMaxDistance(Actor akPet, float afMaxDistance) global nati
 ; Since 1.2.2
 bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
 bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
+
+; Since 1.2.2, written in Papyrus (not native), latent
+bool Function ApproachAndAttach(Actor akPet, Actor akHost, string asNodeName, \
+                               float afX, float afY, float afZ, bool abMatchRotation = true, \
+                               float afApproachDistance = 60.0, float afTimeout = 8.0) global
 ```
 
 ### `Attach(akPet, akHost, asNodeName, afX, afY, afZ, abMatchRotation)`
@@ -156,6 +161,41 @@ It only changes which way the actor faces, not where it is: the offset still set
 Applied at once, with no transition. Ignored when the actor was attached with `abMatchRotation =
 false`. The setting belongs to the current attachment: **call it again after every `Attach`**.
 Returns `false` if the actor is not attached.
+
+### `ApproachAndAttach(...)` — since 1.2.2
+
+`Attach` glides the carried actor from wherever it stands straight to its anchor, over about a
+second. From a few metres away, or from in front of the host, that is a long leap that can pass
+through the host's body. `ApproachAndAttach` takes the same parameters, plus two:
+
+| Parameter | Meaning |
+|---|---|
+| `afApproachDistance` | How far behind the host the actor walks to first (default `60`) |
+| `afTimeout` | Seconds to wait for it to get there before attaching anyway (default `8`) |
+
+The actor first **walks** to the spot behind the host, moved by the game's own AI
+(`KeepOffsetFromActor`): pathfinding, real walking and running animations, and the spot follows the
+host if it moves. Once it is there, the usual `Attach` runs, so only a short hop remains.
+
+```papyrus
+if Piggyback.GetVersion() >= 10202
+    Piggyback.ApproachAndAttach(myPet, Game.GetPlayer(), "NPC Spine2 [Spn2]", 0.0, -30.0, -5.0, true)
+else
+    Piggyback.Attach(myPet, Game.GetPlayer(), "NPC Spine2 [Spn2]", 0.0, -30.0, -5.0, true)
+endif
+myPet.SetDontMove(true)
+```
+
+Things to know:
+
+- It is **latent**: it returns only once the actor is attached (or refused). Call it from a script
+  that can wait, not from one that must answer at once.
+- **Do not call `SetDontMove(true)` before it returns**, or the actor cannot walk. Call it after, as
+  with `Attach`.
+- It returns what `Attach` returns, or `false` if either actor is missing or dead (also checked
+  while walking).
+- It is written in Papyrus, so it ships in `Piggyback.pex`: keep the DLL and the `.pex` from the
+  same version.
 
 ### `GetVersion()` — since 1.2.0
 
