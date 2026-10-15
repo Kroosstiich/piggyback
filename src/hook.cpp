@@ -25,8 +25,11 @@ namespace
 
 void Hooks::Install()
 {
+	// VR moved Actor::Update two slots down (CommonLib: RelocateVirtual(0x0AD, 0x0AF, ...)). Hooking
+	// 0xAD there would replace an unrelated function. VR support is untested in game.
+	const auto index = REL::Relocate<std::size_t>(0xAD, 0xAD, 0xAF);
 	REL::Relocation<std::uintptr_t> playerCharacterVtbl{ RE::VTABLE_PlayerCharacter[0] };
 	PlayerCharacterUpdateHook::_Update =
-		playerCharacterVtbl.write_vfunc(0xAD, PlayerCharacterUpdateHook::Update);
-	SKSE::log::info("Per-frame hook installed (PlayerCharacter::Update, vfunc 0xAD).");
+		playerCharacterVtbl.write_vfunc(index, PlayerCharacterUpdateHook::Update);
+	SKSE::log::info("Per-frame hook installed (PlayerCharacter::Update, vfunc 0x{:X}).", index);
 }

@@ -42,7 +42,12 @@ namespace Piggyback
 	// the current attachment. Returns false if the pet is not attached.
 	bool SetFollowMaxDistance(RE::Actor* a_pet, float a_maxDistance);
 
-	// DLL version as a single number: major * 10000 + minor * 100 + patch (10201 for 1.2.1). Lets a
+	// Heading smoothing (1.2.2): true by default (the fixed ~125 ms lag introduced in 1.1.0). false
+	// makes the rider turn exactly with the host, ignoring the turn lag; meant for riders sitting on
+	// the host. Belongs to the current attachment. Returns false if the pet is not attached.
+	bool SetTurnSmoothing(RE::Actor* a_pet, bool a_enabled);
+
+	// DLL version as a single number: major * 10000 + minor * 100 + patch (10202 for 1.2.2). Lets a
 	// consumer check that a function exists before calling it; IsInstalled stays the presence probe.
 	std::int32_t GetVersion();
 

@@ -45,6 +45,12 @@ bool Function SetFollowLag(Actor akPet, float afMoveLag, float afTurnLag) global
 ; to the attachment: call it again after every Attach. Returns false if akPet is not attached.
 bool Function SetFollowMaxDistance(Actor akPet, float afMaxDistance) global native
 
-; Version of the installed DLL as one number: major * 10000 + minor * 100 + patch (10201 for 1.2.1).
+; Since 1.2.2 (GetVersion() >= 10202). abEnabled = true by default: the heading follows the host with a
+; short ~125 ms lag, so fast turns do not throw a distant pet around. false = akPet turns exactly with
+; the host, with no lag at all (afTurnLag of SetFollowLag is then ignored): use it for a pet sitting ON
+; the host, on its back or in its arms. Call it again after every Attach. Returns false if not attached.
+bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
+
+; Version of the installed DLL as one number: major * 10000 + minor * 100 + patch (10202 for 1.2.2).
 ; Returns 0 when Piggyback.dll is absent or older than 1.2.0.
 int Function GetVersion() global native

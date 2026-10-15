@@ -45,22 +45,6 @@ namespace
 	// instead of snapping there, then the spring is retired.
 	constexpr float kSnapBackLag = 0.08f;
 
-	// TEST BUILDS ONLY (CMake option PIGGYBACK_TEST_LAG): force a lag on every attachment, so the feel
-	// can be judged in game with any consumer mod, untouched. Release builds define neither.
-	//   1 = inertia: the target's velocity is fed forward, so a steady move is followed exactly at the
-	//       configured offset and the lag only shows on changes - starting, stopping, turning, jumping.
-	//   2 = trailing: plain spring, the rider trails further behind the faster the carrier goes
-	//       (distance = speed x lag).
-#if defined(PIGGYBACK_TEST_LAG)
-	constexpr int   kLagMode = PIGGYBACK_TEST_LAG;
-	constexpr float kDefaultMoveLag = 0.30f;
-	constexpr float kDefaultTurnLag = 0.30f;
-#else
-	constexpr int   kLagMode = 1;
-	constexpr float kDefaultMoveLag = 0.0f;
-	constexpr float kDefaultTurnLag = 0.0f;
-#endif
-
 	// How fast the applied offset chases a new one set through SetOffset. Slower than the yaw on
 	// purpose: this is a settings change, and watching the rider slide to its new spot is the point.
 	constexpr float kOffsetRate = 5.0f;
@@ -155,12 +139,15 @@ namespace
 		bool  yawInitialised{ false };
 
 		// Follow lag, in seconds (0 = off). See SetFollowLag.
-		float moveLag{ kDefaultMoveLag };
-		float turnLag{ kDefaultTurnLag };
+		float moveLag{ 0.0f };
+		float turnLag{ 0.0f };
 
 		// How far the rider may fall behind its spot, in units at standard build (0 = no limit).
 		// See SetFollowMaxDistance.
 		float maxLagDistance{ 0.0f };
+
+		// false = the heading follows the host exactly, with no smoothing at all. See SetTurnSmoothing.
+		bool turnSmoothing{ true };
 
 		// Heading spring: angular velocity of smoothedYaw, and the host yaw of the previous frame
 		// (always tracked, so switching the turn lag on mid-carry starts from the right place).
@@ -207,18 +194,17 @@ namespace
 	// own velocity; a_targetVel is how fast the target moves during the step. On return a_err is the
 	// offset from the target's NEW position, and a_vel the follower's new velocity.
 	//
-	// Inertia damps the velocity RELATIVE to the target, so a target moving steadily is followed with
-	// no gap at all. Trailing damps the absolute velocity, which leaves the follower a steady
-	// a_targetVel * a_smoothTime behind: the spring's rest point is shifted by that amount.
-	void CriticalSpring(float& a_err, float& a_vel, float a_targetVel, float a_smoothTime, float a_dt, bool a_trailing)
+	// The velocity is damped RELATIVE to the target ("inertia"), so a target moving steadily is followed
+	// with no gap at all and the lag only shows on changes: starting, stopping, turning, jumping.
+	// A plain spring on the absolute velocity ("trailing") was compared in 1.2.0 and dropped: it leaves
+	// the follower speed x lag behind, which bends the consumer's offsets at speed.
+	void CriticalSpring(float& a_err, float& a_vel, float a_targetVel, float a_smoothTime, float a_dt)
 	{
 		const float omega = 2.0f / a_smoothTime;
-		const float rest = a_trailing ? -2.0f * a_targetVel / omega : 0.0f;
-		const float e0 = a_err - rest;
 		const float v0 = a_vel - a_targetVel;  // rate of change of the offset
-		const float c = v0 + omega * e0;
+		const float c = v0 + omega * a_err;
 		const float decay = std::exp(-omega * a_dt);
-		a_err = rest + (e0 + c * a_dt) * decay;
+		a_err = (a_err + c * a_dt) * decay;
 		a_vel = a_targetVel + (v0 - omega * c * a_dt) * decay;
 	}
 
@@ -639,6 +625,21 @@ namespace Piggyback
 		return true;
 	}
 
+	bool SetTurnSmoothing(RE::Actor* a_pet, bool a_enabled)
+	{
+		if (!a_pet) {
+			return false;
+		}
+		std::lock_guard lock(g_mutex);
+		auto it = g_attached.find(a_pet->GetFormID());
+		if (it == g_attached.end() || it->second.detaching) {
+			return false;
+		}
+		it->second.turnSmoothing = a_enabled;
+		SKSE::log::info("SetTurnSmoothing: pet {:08X} enabled={}", a_pet->GetFormID(), a_enabled);
+		return true;
+	}
+
 	bool IsInstalled()
 	{
 		return true;  // this call resolving at all proves the DLL is loaded
@@ -769,12 +770,18 @@ namespace Piggyback
 				data.smoothedYaw = rawYaw;  // start on the truth, so there is no catch-up on frame one
 				data.yawVel = 0.0f;
 				data.yawInitialised = true;
+			} else if (!data.turnSmoothing) {
+				// A rider sitting on the host (on its back, in its arms) must turn with the body: any lag
+				// swings it off its spot. The teleport-on-fast-turns that smoothing fixed only shows
+				// on riders placed far from the anchor, which is why this is opt-in.
+				data.smoothedYaw = rawYaw;
+				data.yawVel = 0.0f;
 			} else if (data.turnLag > 0.0f && step > 0.0f) {
 				// Turn lag: the same spring as the position, on the angle. The error is wrapped so a turn
 				// across the +/-180 degree seam goes the short way round.
 				const float yawSpeed = WrapPi(rawYaw - data.prevRawYaw) / step;
 				float       err = WrapPi(data.smoothedYaw - data.prevRawYaw);
-				CriticalSpring(err, data.yawVel, yawSpeed, data.turnLag, step, kLagMode == 2);
+				CriticalSpring(err, data.yawVel, yawSpeed, data.turnLag, step);
 				data.smoothedYaw = WrapPi(rawYaw + err);
 			} else {
 				const float k = 1.0f - std::exp(-kYawRate * a_delta);
@@ -814,11 +821,10 @@ namespace Piggyback
 					data.lagVel = RE::NiPoint3{};
 				} else {
 					const float  smoothTime = data.moveLag > 0.0f ? data.moveLag : kSnapBackLag;
-					const bool   trailing = kLagMode == 2;
 					RE::NiPoint3 err = data.lagPos - data.prevRidePos;
-					CriticalSpring(err.x, data.lagVel.x, travel.x / step, smoothTime, step, trailing);
-					CriticalSpring(err.y, data.lagVel.y, travel.y / step, smoothTime, step, trailing);
-					CriticalSpring(err.z, data.lagVel.z, travel.z / step, smoothTime, step, trailing);
+					CriticalSpring(err.x, data.lagVel.x, travel.x / step, smoothTime, step);
+					CriticalSpring(err.y, data.lagVel.y, travel.y / step, smoothTime, step);
+					CriticalSpring(err.z, data.lagVel.z, travel.z / step, smoothTime, step);
 
 					// Leash, if the consumer set one: never further than maxLagDistance from the spot.
 					// When it pulls, the part of the velocity heading further out is dropped, so the
@@ -940,8 +946,8 @@ namespace Piggyback
 					pet->IsInRagdollState());
 				// Only when a lag is in play, so a 1.1-style attachment logs exactly what it used to.
 				if (data.moveLag > 0.0f || data.turnLag > 0.0f || data.lagActive) {
-					SKSE::log::info("[lag] mode={} move={:.2f}s turn={:.2f}s | gap={:.1f} (max {:.0f}, 0 = none) | yaw behind by {:.1f}deg",
-						kLagMode == 2 ? "trailing" : "inertia", data.moveLag, data.turnLag,
+					SKSE::log::info("[lag] move={:.2f}s turn={:.2f}s | gap={:.1f} (max {:.0f}, 0 = none) | yaw behind by {:.1f}deg",
+						data.moveLag, data.turnLag,
 						lagGap, data.maxLagDistance * data.hostScale,
 						WrapPi(rawYaw - hostYaw) * 57.2957795f);
 				}
@@ -1036,6 +1042,11 @@ namespace Piggyback
 			return SetFollowMaxDistance(a_pet, a_maxDistance);
 		}
 
+		bool PapyrusSetTurnSmoothing(RE::StaticFunctionTag*, RE::Actor* a_pet, bool a_enabled)
+		{
+			return SetTurnSmoothing(a_pet, a_enabled);
+		}
+
 		std::int32_t PapyrusGetVersion(RE::StaticFunctionTag*)
 		{
 			return GetVersion();
@@ -1051,12 +1062,9 @@ namespace Piggyback
 		a_vm->RegisterFunction("IsInstalled", "Piggyback", PapyrusIsInstalled);
 		a_vm->RegisterFunction("SetFollowLag", "Piggyback", PapyrusSetFollowLag);
 		a_vm->RegisterFunction("SetFollowMaxDistance", "Piggyback", PapyrusSetFollowMaxDistance);
+		a_vm->RegisterFunction("SetTurnSmoothing", "Piggyback", PapyrusSetTurnSmoothing);
 		a_vm->RegisterFunction("GetVersion", "Piggyback", PapyrusGetVersion);
-		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / SetFollowMaxDistance / GetVersion.");
-#if defined(PIGGYBACK_TEST_LAG)
-		SKSE::log::warn("TEST BUILD: follow lag forced on every attachment ({}, move {:.2f}s, turn {:.2f}s). Not for release.",
-			kLagMode == 2 ? "trailing" : "inertia", kDefaultMoveLag, kDefaultTurnLag);
-#endif
+		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / SetFollowMaxDistance / SetTurnSmoothing / GetVersion.");
 		return true;
 	}
 }

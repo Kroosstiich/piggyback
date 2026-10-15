@@ -58,6 +58,9 @@ int  Function GetVersion() global native
 
 ; Since 1.2.1
 bool Function SetFollowMaxDistance(Actor akPet, float afMaxDistance) global native
+
+; Since 1.2.2
+bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
 ```
 
 ### `Attach(akPet, akHost, asNodeName, afX, afY, afZ, abMatchRotation)`
@@ -127,9 +130,22 @@ standard build (scaled to the host, like the offset). `0` = no limit, which is t
 long delays or a fast host, to keep the actor from trailing too far. The setting belongs to the current
 attachment: **call it again after every `Attach`**. Returns `false` if the actor is not attached.
 
+### `SetTurnSmoothing(akPet, abEnabled)` — since 1.2.2
+
+By default (`true`), the carried actor's heading follows the host's with a short ~125 ms lag, so a
+fast mouse turn reads as a sweep instead of a jump. With `false`, it turns **exactly** with the host,
+with no lag at all, and the `afTurnLag` of `SetFollowLag` is ignored.
+
+Use `false` for an actor sitting **on** the host: on its back, in its arms, on its shoulders. It must
+turn with the body; any lag swings it off its spot. Keep the default for an actor placed further
+away: without smoothing, a fast turn moves it across the whole arc around the host in one frame.
+
+The setting belongs to the current attachment: **call it again after every `Attach`**. Returns
+`false` if the actor is not attached. Mods that never call it keep the previous behaviour.
+
 ### `GetVersion()` — since 1.2.0
 
-The installed DLL version as one number: `major * 10000 + minor * 100 + patch`, so `10201` for 1.2.1.
+The installed DLL version as one number: `major * 10000 + minor * 100 + patch`, so `10202` for 1.2.2.
 Returns `0` when the DLL is missing **or older than 1.2.0** (the function does not exist there). Use it
 before calling anything added after 1.1:
 
@@ -195,6 +211,7 @@ they do not all react on the same frame. That alone makes a group look far less 
   after a save is loaded.
 - A value of `0` for `afTurnLag` does not remove all smoothing: the heading keeps the fixed ~125 ms lag
   introduced in 1.1.0, which prevents the rider from being re-placed in one frame on a fast mouse turn.
+  To remove it entirely, use [`SetTurnSmoothing`](#setturnsmoothingakpet-abenabled--since-122).
 
 ---
 
@@ -284,7 +301,13 @@ load, a previously carried creature is simply free again.
 If your mod needs the rider to persist, re-attach on `OnPlayerLoadGame`, or clean up as *Velyn* does:
 clear `SetDontMove` so the creature is not left frozen from a state that no longer exists.
 
-**3. Do not attach an actor to itself**, and do not attach the player.
+**3. Do not attach an actor to itself.**
+
+Attaching **the player** as the carried actor works: *Carry Me* has NPCs carry the player this way.
+Two things worth knowing, from that mod's experience: release the player before the carrier goes
+through a load door, and expect the camera to need a reset in some poses (switching between first
+and third person does it). Carrying with an NPC as the host has not been tested at high speed: if the
+carried actor jitters while the host runs, please report it.
 
 ---
 
@@ -387,7 +410,8 @@ EndFunction
   implemented yet.
 - **The rider turns with a slight lag.** Its heading chases the host's over roughly 125 ms rather than
   snapping to it, so a fast mouse turn reads as a sweep instead of a jump. Since 1.2.0, a longer and
-  more natural delay can be set with [`SetFollowLag`](#natural-follow-lag).
+  more natural delay can be set with [`SetFollowLag`](#natural-follow-lag), and since 1.2.2 the lag
+  can be switched off with [`SetTurnSmoothing`](#setturnsmoothingakpet-abenabled--since-122).
 - **Animations depend on the creature.** Movement and sprint events are forwarded, but a creature whose
   animation graph does not use them will stay in its idle. Graph *variables* such as `Speed` are set too,
   but on many creatures they do not drive locomotion, only the events do.
@@ -452,12 +476,13 @@ at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
 The vcpkg baseline is pinned separately. The build script and triplet select the
 same compiler toolset.
 
-## Compatibility — 1.2.1
+## Compatibility — 1.2.2
 
 Tested on **Skyrim Steam 1.7.104** with **SKSE 2.3.1** and the matching Address Library
 database. **Skyrim 1.6.1170** is reported working by players. Piggyback is built with
-CommonLibSSE-NG for all runtimes, but other versions (1.5.97, 1.7.100) and VR have not been
-tested. Feedback is welcome.
+CommonLibSSE-NG for all runtimes, but other versions (1.5.97, 1.7.100) have not been
+tested. **Skyrim VR** should load since 1.2.2 but is untested: VR feedback is
+especially welcome.
 
 Piggyback 1.1.0 remains available for Skyrim 1.6.1170 if you prefer it.
 

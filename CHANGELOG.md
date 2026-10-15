@@ -4,6 +4,25 @@ All notable changes to Piggyback are documented here.
 This project follows [Semantic Versioning](https://semver.org/): the Papyrus API is the public
 contract, and no released function ever changes signature.
 
+## [1.2.2] - 2026-10-15
+
+### Added
+
+- **`SetTurnSmoothing(akPet, abEnabled)`** switches off the heading smoothing for one carried actor.
+  Until now, the ~125 ms lag on turns could not be disabled, which made an actor sitting on its host
+  (on its back, in its arms) swing off its spot on fast turns. With `false`, it turns exactly with
+  the host. `true` is the default, so existing mods keep their behaviour without any change.
+- `GetVersion()` returns `10202`.
+
+### Changed
+
+- **Skyrim VR: should now load correctly, but is untested.** The per-frame hook used the flat
+  game's slot for the player update, which differs in VR. Feedback from VR players is welcome.
+- Documentation: carrying the player is supported (as *Carry Me* does); the old "do not attach the
+  player" rule is gone.
+- Internal clean-up: an unused follow-lag variant and a test-only build option were removed. No
+  change in game.
+
 ## [1.2.1] - 2026-09-30
 
 The follow lag's limits are now the mod's choice.

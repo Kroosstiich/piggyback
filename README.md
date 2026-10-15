@@ -41,6 +41,9 @@ int  Function GetVersion() global native
 
 ; Since 1.2.1
 bool Function SetFollowMaxDistance(Actor akPet, float afMaxDistance) global native
+
+; Since 1.2.2
+bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
 ```
 
 ```papyrus
@@ -55,7 +58,8 @@ lets your mod treat Piggyback as an **optional** dependency and hide the feature
 
 `SetFollowLag()` (1.2.0) gives the rider a natural delay on moves and turns instead of reacting on the
 very same frame, and `SetFollowMaxDistance()` (1.2.1) optionally limits how far it may trail.
-`GetVersion()` returns `10201` for 1.2.1, so you can check a function exists before calling it.
+`SetTurnSmoothing()` (1.2.2) lets an actor sitting on its host turn exactly with it.
+`GetVersion()` returns `10202` for 1.2.2, so you can check a function exists before calling it.
 
 Full details, coordinate space, rules and examples: **[DOCUMENTATION.md](DOCUMENTATION.md)**.
 
@@ -85,12 +89,13 @@ at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
 The vcpkg baseline is pinned separately. The build script and triplet select the
 same compiler toolset.
 
-## Compatibility — 1.2.1
+## Compatibility — 1.2.2
 
 Tested on **Skyrim Steam 1.7.104** with **SKSE 2.3.1** and the matching Address Library
 database. **Skyrim 1.6.1170** is reported working by players. Piggyback is built with
-CommonLibSSE-NG for all runtimes, but other versions (1.5.97, 1.7.100) and VR have not been
-tested. Feedback is welcome.
+CommonLibSSE-NG for all runtimes, but other versions (1.5.97, 1.7.100) have not been
+tested. **Skyrim VR** should load since 1.2.2 but is untested: VR feedback is
+especially welcome.
 Piggyback 1.1.0 remains available for Skyrim 1.6.1170 if you prefer it.
 
 ---
