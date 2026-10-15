@@ -51,6 +51,9 @@ namespace Piggyback
 	// consumer check that a function exists before calling it; IsInstalled stays the presence probe.
 	std::int32_t GetVersion();
 
+	// Drops every attachment, handing each pet's collision back. Called on save load and new game.
+	void ReleaseAll(const char* a_reason);
+
 	// Called EVERY FRAME from the PlayerCharacter::Update hook (see hook.cpp).
 	// a_delta: time elapsed since the previous frame, used by the transitions.
 	void UpdateAll(float a_delta);

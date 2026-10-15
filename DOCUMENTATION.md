@@ -296,7 +296,9 @@ the transition. Wait a second, or drive it from your own timer.
 
 The attachment state lives in memory and is **not written into the save**. This is deliberate: the plugin
 stores no save data at all, so uninstalling it can never corrupt anything. It also means that after a
-load, a previously carried creature is simply free again.
+load, a previously carried creature is simply free again: since 1.2.2, Piggyback releases every
+attachment when a save is loaded or a new game starts (earlier versions kept them across a load made
+without quitting the game).
 
 If your mod needs the rider to persist, re-attach on `OnPlayerLoadGame`, or clean up as *Velyn* does:
 clear `SetDontMove` so the creature is not left frozen from a state that no longer exists.

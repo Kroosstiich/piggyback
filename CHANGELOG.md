@@ -14,6 +14,13 @@ contract, and no released function ever changes signature.
   the host. `true` is the default, so existing mods keep their behaviour without any change.
 - `GetVersion()` returns `10202`.
 
+### Fixed
+
+- **Loading a save no longer keeps a carried actor attached.** Attachments lived on in memory across
+  a load made without quitting the game, so an actor carried before the load was glued back onto its
+  host in the loaded save, even where nobody had asked for it. Piggyback now releases every
+  attachment when a save is loaded or a new game starts.
+
 ### Changed
 
 - **Skyrim VR: should now load correctly, but is untested.** The per-frame hook used the flat

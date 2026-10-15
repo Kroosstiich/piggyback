@@ -9,6 +9,13 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 	case SKSE::MessagingInterface::kDataLoaded:
 		SKSE::log::info("kDataLoaded: ready.");
 		break;
+	// Attachments are never saved: drop them before another game takes over (load, new game).
+	case SKSE::MessagingInterface::kPreLoadGame:
+		Piggyback::ReleaseAll("Loading a save");
+		break;
+	case SKSE::MessagingInterface::kNewGame:
+		Piggyback::ReleaseAll("New game");
+		break;
 	default:
 		break;
 	}

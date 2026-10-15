@@ -640,6 +640,24 @@ namespace Piggyback
 		return true;
 	}
 
+	void ReleaseAll(const char* a_reason)
+	{
+		std::lock_guard lock(g_mutex);
+		if (g_attached.empty()) {
+			return;
+		}
+		// The table outlives a save load: FormIDs still resolve in the next save, so without this a pet
+		// carried before the load is glued back onto its host in a save where nobody asked for it, and
+		// the host keeps its "cannot be pushed" flag. Hand everything back, as every eviction path does.
+		for (auto& [formID, data] : g_attached) {
+			if (auto* pet = RE::TESForm::LookupByID<RE::Actor>(formID)) {
+				RestoreCollision(pet, data);
+			}
+		}
+		SKSE::log::info("{}: released {} attachment(s).", a_reason, g_attached.size());
+		g_attached.clear();
+	}
+
 	bool IsInstalled()
 	{
 		return true;  // this call resolving at all proves the DLL is loaded
