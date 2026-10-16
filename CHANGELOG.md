@@ -15,6 +15,10 @@ contract, and no released function ever changes signature.
 - **`SetRotationOffset(akPet, afDegrees)`** turns the carried actor's facing relative to its host's,
   in degrees (`180` = facing the host). Useful for poses that face sideways or backwards, or to
   correct a slightly turned animation. `0` by default.
+- **`SetHostCollision(akPet, abEnabled)`**: with `false`, the host ignores collisions with characters
+  while carrying, so a running host no longer bumps into a rider sitting on it (an NPC rider kept
+  saying its "watch it" line). Side effect, documented: the host passes through other characters
+  until the rider is released. `true` by default.
 - **`ApproachAndAttach(...)`**: the same as `Attach`, but the actor first walks to a spot behind its
   host, moved by the game's own AI (pathfinding, real animations), then makes a short hop onto it.
   No more long leap from wherever it stood. Written in Papyrus and latent: it returns once attached.

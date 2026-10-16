@@ -57,6 +57,12 @@ bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
 ; again after every Attach. Returns false if akPet is not attached.
 bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
 
+; Since 1.2.2 (GetVersion() >= 10202). abEnabled = true by default. false = while carrying akPet, the
+; host ignores collisions with all characters: it no longer bumps into a pet sitting on it (which makes
+; an NPC rider say its "watch it" line when the host runs), but it also walks through every other
+; character until akPet is released. Call it again after every Attach. Returns false if not attached.
+bool Function SetHostCollision(Actor akPet, bool abEnabled) global native
+
 ; Version of the installed DLL as one number: major * 10000 + minor * 100 + patch (10202 for 1.2.2).
 ; Returns 0 when Piggyback.dll is absent or older than 1.2.0.
 int Function GetVersion() global native

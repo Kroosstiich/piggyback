@@ -152,6 +152,9 @@ namespace
 		// Added to the host's heading for the rider's facing, in radians. See SetRotationOffset.
 		float rotationOffset{ 0.0f };
 
+		// false = the host ignores collisions with characters while carrying. See SetHostCollision.
+		bool hostCollision{ true };
+
 		// Heading spring: angular velocity of smoothedYaw, and the host yaw of the previous frame
 		// (always tracked, so switching the turn lag on mid-carry starts from the right place).
 		float yawVel{ 0.0f };
@@ -395,6 +398,9 @@ namespace
 
 		if (auto* host = RE::TESForm::LookupByID<RE::Actor>(a_data.host)) {
 			SetHostPushable(host, true);
+			if (!a_data.hostCollision) {
+				SetCharacterCollisions(host, true);  // only ever cleared through SetHostCollision
+			}
 		}
 
 		// Hand the actor back upright. Its own yaw is kept; only pitch and roll are cleared, which is
@@ -474,6 +480,13 @@ namespace Piggyback
 		if (const auto existing = g_attached.find(a_pet->GetFormID()); existing != g_attached.end()) {
 			data.savedLayer = existing->second.savedLayer;
 			data.hasSavedLayer = existing->second.hasSavedLayer;
+			// The new entry starts with host collision on: give the old host its collisions back,
+			// or a host made pass-through by the replaced attachment would stay that way for good.
+			if (!existing->second.hostCollision) {
+				if (auto* oldHost = RE::TESForm::LookupByID<RE::Actor>(existing->second.host)) {
+					SetCharacterCollisions(oldHost, true);
+				}
+			}
 		}
 
 		data.host = a_host->GetFormID();
@@ -643,6 +656,27 @@ namespace Piggyback
 		return true;
 	}
 
+	bool SetHostCollision(RE::Actor* a_pet, bool a_enabled)
+	{
+		if (!a_pet) {
+			return false;
+		}
+		std::lock_guard lock(g_mutex);
+		auto it = g_attached.find(a_pet->GetFormID());
+		if (it == g_attached.end() || it->second.detaching) {
+			return false;
+		}
+		// Switched back on mid-carry: hand the collisions back now, UpdateAll only ever clears them.
+		if (a_enabled && !it->second.hostCollision) {
+			if (auto* host = RE::TESForm::LookupByID<RE::Actor>(it->second.host)) {
+				SetCharacterCollisions(host, true);
+			}
+		}
+		it->second.hostCollision = a_enabled;
+		SKSE::log::info("SetHostCollision: pet {:08X} enabled={}", a_pet->GetFormID(), a_enabled);
+		return true;
+	}
+
 	bool SetRotationOffset(RE::Actor* a_pet, float a_degrees)
 	{
 		if (!a_pet) {
@@ -718,6 +752,13 @@ namespace Piggyback
 			if (!data.collisionReleased) {
 				SetCharacterCollisions(pet, false);
 				SetHostPushable(host, false);
+				// Opt-in (SetHostCollision): the host moves BEFORE this hook re-places the rider, so a
+				// running host walks a few units into a rider sitting on it, every frame. The engine
+				// reads that as a bump (the rider's "watch it" line). Only the host's own flag stops
+				// it, at the cost of the host passing through every character while carrying.
+				if (!data.hostCollision) {
+					SetCharacterCollisions(host, false);
+				}
 			}
 
 			// Only while actually carried. During the descent the actor is solid again and settling
@@ -1083,6 +1124,11 @@ namespace Piggyback
 			return SetTurnSmoothing(a_pet, a_enabled);
 		}
 
+		bool PapyrusSetHostCollision(RE::StaticFunctionTag*, RE::Actor* a_pet, bool a_enabled)
+		{
+			return SetHostCollision(a_pet, a_enabled);
+		}
+
 		bool PapyrusSetRotationOffset(RE::StaticFunctionTag*, RE::Actor* a_pet, float a_degrees)
 		{
 			return SetRotationOffset(a_pet, a_degrees);
@@ -1105,8 +1151,9 @@ namespace Piggyback
 		a_vm->RegisterFunction("SetFollowMaxDistance", "Piggyback", PapyrusSetFollowMaxDistance);
 		a_vm->RegisterFunction("SetTurnSmoothing", "Piggyback", PapyrusSetTurnSmoothing);
 		a_vm->RegisterFunction("SetRotationOffset", "Piggyback", PapyrusSetRotationOffset);
+		a_vm->RegisterFunction("SetHostCollision", "Piggyback", PapyrusSetHostCollision);
 		a_vm->RegisterFunction("GetVersion", "Piggyback", PapyrusGetVersion);
-		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / SetFollowMaxDistance / SetTurnSmoothing / SetRotationOffset / GetVersion.");
+		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / SetFollowMaxDistance / SetTurnSmoothing / SetRotationOffset / SetHostCollision / GetVersion.");
 		return true;
 	}
 }

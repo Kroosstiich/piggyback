@@ -52,6 +52,12 @@ namespace Piggyback
 	// matchRotation. Applied at once. Belongs to the current attachment. False if not attached.
 	bool SetRotationOffset(RE::Actor* a_pet, float a_degrees);
 
+	// Host collision (1.2.2): true by default. false = while carrying, the host ignores collisions
+	// with characters, so it no longer bumps into a rider sitting on it (the rider's "watch it" line
+	// when running) - but it also passes through every other character. Restored on release.
+	// Belongs to the current attachment. Returns false if the pet is not attached.
+	bool SetHostCollision(RE::Actor* a_pet, bool a_enabled);
+
 	// DLL version as a single number: major * 10000 + minor * 100 + patch (10202 for 1.2.2). Lets a
 	// consumer check that a function exists before calling it; IsInstalled stays the presence probe.
 	std::int32_t GetVersion();
