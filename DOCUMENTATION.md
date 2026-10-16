@@ -163,20 +163,18 @@ Applied at once, with no transition. Ignored when the actor was attached with `a
 false`. The setting belongs to the current attachment: **call it again after every `Attach`**.
 Returns `false` if the actor is not attached.
 
-### `SetHostCollision(akPet, abEnabled)` — since 1.2.2
+### `SetHostCollision(akPet, abEnabled)` — since 1.2.2, experimental
 
-Each frame the game moves the host first, and Piggyback re-places the carried actor right after. For
-an actor sitting **on** the host (on its back, in its arms), that means a running host steps a few
-units into it every frame. The host itself is never pushed, but the engine still counts the contact
-as a bump: an NPC rider says its "watch it" line, again and again.
+With `false`, the host ignores collisions with characters for as long as it carries `akPet`: it
+**walks through every other character** during that time. Everything is restored when the actor is
+released. `true` (the default) keeps the normal behaviour.
 
-With `false`, the host ignores collisions with characters for as long as it carries `akPet`, so the
-bumps stop. The price: during that time the host also **walks through every other character**.
-Everything is restored when the actor is released. `true` (the default) keeps the normal behaviour.
+**Known limit:** it was added to stop an NPC rider sitting on a running host from saying its "watch
+it" line again and again, and **it does not stop it**. That issue is still being investigated. The
+function is kept for mods that want a host to pass through other characters while carrying.
 
-Use it for riders that sit on their host; an actor carried at a distance, like a creature floating
-behind, does not need it. The setting belongs to the current attachment: **call it again after every
-`Attach`**. Returns `false` if the actor is not attached.
+The setting belongs to the current attachment: **call it again after every `Attach`**. Returns
+`false` if the actor is not attached.
 
 ### `ApproachAndAttach(...)` — since 1.2.2
 
