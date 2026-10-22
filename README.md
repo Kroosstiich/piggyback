@@ -45,6 +45,11 @@ bool Function SetFollowMaxDistance(Actor akPet, float afMaxDistance) global nati
 ; Since 1.2.2
 bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
 bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
+bool Function SetHostCollision(Actor akPet, bool abEnabled) global native
+
+; Since 1.2.3
+bool Function SetRiderCollision(Actor akPet, bool abEnabled) global native
+bool Function SetReleaseOffset(Actor akPet, float afX, float afY) global native
 ```
 
 ```papyrus
@@ -64,7 +69,9 @@ very same frame, and `SetFollowMaxDistance()` (1.2.1) optionally limits how far 
 `SetHostCollision()` (1.2.2, experimental) lets a host pass through other characters while carrying.
 `ApproachAndAttach()` (1.2.2) has the actor walk behind the host with the game's AI before the short
 hop onto it, instead of a long leap.
-`GetVersion()` returns `10202` for 1.2.2, so you can check a function exists before calling it.
+`SetRiderCollision()` and `SetReleaseOffset()` (1.2.3) stop a close rider and its host from
+pushing each other, and choose where the rider is set down.
+`GetVersion()` returns `10203` for 1.2.3, so you can check a function exists before calling it.
 
 Full details, coordinate space, rules and examples: **[DOCUMENTATION.md](DOCUMENTATION.md)**.
 
@@ -94,7 +101,7 @@ at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
 The vcpkg baseline is pinned separately. The build script and triplet select the
 same compiler toolset.
 
-## Compatibility — 1.2.2
+## Compatibility — 1.2.3
 
 Tested on **Skyrim Steam 1.7.104** with **SKSE 2.3.1** and the matching Address Library
 database. **Skyrim 1.6.1170** is reported working by players. Piggyback is built with

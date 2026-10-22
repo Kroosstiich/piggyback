@@ -64,6 +64,10 @@ bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
 bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
 bool Function SetHostCollision(Actor akPet, bool abEnabled) global native
 
+; Since 1.2.3
+bool Function SetRiderCollision(Actor akPet, bool abEnabled) global native
+bool Function SetReleaseOffset(Actor akPet, float afX, float afY) global native
+
 ; Since 1.2.2, written in Papyrus (not native), latent
 bool Function ApproachAndAttach(Actor akPet, Actor akHost, string asNodeName, \
                                float afX, float afY, float afZ, bool abMatchRotation = true, \
@@ -176,6 +180,34 @@ function is kept for mods that want a host to pass through other characters whil
 The setting belongs to the current attachment: **call it again after every `Attach`**. Returns
 `false` if the actor is not attached.
 
+### `SetRiderCollision(akPet, abEnabled)` — since 1.2.3
+
+Each frame the game moves the host first, and Piggyback re-places the carried actor right after. An
+actor held **close against** its host (in its arms, on its back) is therefore walked into by a
+running host, a few units every frame: the two bodies push against each other.
+
+With `false`, the carried actor and its host **stop colliding with each other**, and only with each
+other: both still collide with the ground, the scenery and every other character. Technically, the
+carried actor joins its host's Havok collision group, the way a body's own limbs ignore each other.
+Everything is restored when the actor is released (at the start of the set-down). `true` (the
+default) keeps the normal behaviour.
+
+The setting belongs to the current attachment: **call it again after every `Attach`**. Returns
+`false` if the actor is not attached.
+
+### `SetReleaseOffset(akPet, afX, afY)` — since 1.2.3
+
+By default `Detach` sets the actor down **behind** the host, 60 units back. For an actor carried in
+front, that path goes straight through the host. This sets the spot instead, in the same space as
+the offset: X = right, Y = forward (negative = behind), scaled to the host's build.
+
+```papyrus
+Piggyback.SetReleaseOffset(myPet, 0.0, 60.0)   ; set down in front of the host
+```
+
+The setting belongs to the current attachment: **call it again after every `Attach`**. Returns
+`false` if the actor is not attached.
+
 ### `ApproachAndAttach(...)` — since 1.2.2
 
 `Attach` glides the carried actor from wherever it stands straight to its anchor, over about a
@@ -213,7 +245,7 @@ Things to know:
 
 ### `GetVersion()` — since 1.2.0
 
-The installed DLL version as one number: `major * 10000 + minor * 100 + patch`, so `10202` for 1.2.2.
+The installed DLL version as one number: `major * 10000 + minor * 100 + patch`, so `10203` for 1.2.3.
 Returns `0` when the DLL is missing **or older than 1.2.0** (the function does not exist there). Use it
 before calling anything added after 1.1:
 
@@ -546,7 +578,7 @@ at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
 The vcpkg baseline is pinned separately. The build script and triplet select the
 same compiler toolset.
 
-## Compatibility — 1.2.2
+## Compatibility — 1.2.3
 
 Tested on **Skyrim Steam 1.7.104** with **SKSE 2.3.1** and the matching Address Library
 database. **Skyrim 1.6.1170** is reported working by players. Piggyback is built with

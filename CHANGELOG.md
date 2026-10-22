@@ -4,6 +4,22 @@ All notable changes to Piggyback are documented here.
 This project follows [Semantic Versioning](https://semver.org/): the Papyrus API is the public
 contract, and no released function ever changes signature.
 
+## [1.2.3] - 2026-10-22
+
+Two options requested while making *Carry Them* (carrying an NPC in your arms). Nothing changes for
+mods that do not use them.
+
+### Added
+
+- **`SetRiderCollision(akPet, abEnabled)`**: with `false`, the carried actor and its host stop
+  colliding with each other, and only with each other. A running host no longer walks into an actor
+  held close against it. Both keep colliding with the ground, the scenery and other characters.
+  `true` by default.
+- **`SetReleaseOffset(akPet, afX, afY)`**: chooses where `Detach` sets the actor down, in the host's
+  facing space. Until now it was always behind the host, so an actor carried in front crossed the
+  host on its way down. Default unchanged: behind.
+- `GetVersion()` returns `10203`.
+
 ## [1.2.2] - 2026-10-16
 
 ### Added

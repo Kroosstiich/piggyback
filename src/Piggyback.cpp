@@ -155,6 +155,17 @@ namespace
 		// false = the host ignores collisions with characters while carrying. See SetHostCollision.
 		bool hostCollision{ true };
 
+		// false = rider and host stop colliding with each other. See SetRiderCollision. The rider's
+		// own system group is saved here while it borrows the host's, and given back on release.
+		bool          riderCollision{ true };
+		std::uint32_t savedGroup{ 0 };
+		bool          groupShared{ false };
+
+		// Where the rider is set down on release, in the host's facing space (X right, Y forward),
+		// at standard build. See SetReleaseOffset. Default: straight behind.
+		float releaseX{ 0.0f };
+		float releaseY{ -kReleaseDistance };
+
 		// Heading spring: angular velocity of smoothedYaw, and the host yaw of the previous frame
 		// (always tracked, so switching the turn lag on mid-carry starts from the right place).
 		float yawVel{ 0.0f };
@@ -293,6 +304,44 @@ namespace
 		return true;
 	}
 
+	// Havok skips collisions between two bodies of the same non-zero system group: that is how a
+	// ragdoll's limbs avoid hitting each other. Putting the rider's body in its host's group makes the
+	// two ignore EACH OTHER only - the rider still collides with the ground, the scenery and everyone
+	// else. Unlike the non-collidable layer tried in 1.1, the rider never leaves the simulation, so
+	// there is nothing stale to re-synchronise when it is set down.
+	void ShareHostGroup(RE::Actor* a_pet, RE::Actor* a_host, AttachData& a_data)
+	{
+		auto* hostBody = GetCollisionBody(a_host);
+		auto* petBody = GetCollisionBody(a_pet);
+		if (!hostBody || !petBody) {
+			return;
+		}
+		const auto group = hostBody->GetCollidableRW()->broadPhaseHandle.collisionFilterInfo.GetSystemGroup();
+		if (group == 0) {
+			return;  // group 0 means "no group": sharing it would change nothing
+		}
+		auto& info = petBody->GetCollidableRW()->broadPhaseHandle.collisionFilterInfo;
+		if (!a_data.groupShared) {
+			a_data.savedGroup = info.GetSystemGroup();
+			a_data.groupShared = true;
+			SKSE::log::info("[collision] pet {:08X} now shares host {:08X} system group {} (was {})",
+				a_pet->GetFormID(), a_host->GetFormID(), group, a_data.savedGroup);
+		}
+		info.SetSystemGroup(group);
+	}
+
+	// Gives the rider its own system group back, if it borrowed the host's.
+	void RestoreGroup(RE::Actor* a_pet, AttachData& a_data)
+	{
+		if (!a_data.groupShared) {
+			return;
+		}
+		if (auto* body = GetCollisionBody(a_pet)) {
+			body->GetCollidableRW()->broadPhaseHandle.collisionFilterInfo.SetSystemGroup(a_data.savedGroup);
+		}
+		a_data.groupShared = false;
+	}
+
 	void SetCharacterCollisions(RE::Actor* a_actor, bool a_enabled)
 	{
 		if (auto* cc = a_actor->GetCharController()) {
@@ -395,6 +444,7 @@ namespace
 	{
 		a_pet->SetCollision(true);
 		SetCharacterCollisions(a_pet, true);
+		RestoreGroup(a_pet, a_data);
 
 		if (auto* host = RE::TESForm::LookupByID<RE::Actor>(a_data.host)) {
 			SetHostPushable(host, true);
@@ -487,6 +537,7 @@ namespace Piggyback
 					SetCharacterCollisions(oldHost, true);
 				}
 			}
+			RestoreGroup(a_pet, existing->second);  // same reason: the new entry starts colliding
 		}
 
 		data.host = a_host->GetFormID();
@@ -677,6 +728,40 @@ namespace Piggyback
 		return true;
 	}
 
+	bool SetRiderCollision(RE::Actor* a_pet, bool a_enabled)
+	{
+		if (!a_pet) {
+			return false;
+		}
+		std::lock_guard lock(g_mutex);
+		auto it = g_attached.find(a_pet->GetFormID());
+		if (it == g_attached.end() || it->second.detaching) {
+			return false;
+		}
+		it->second.riderCollision = a_enabled;
+		if (a_enabled) {
+			RestoreGroup(a_pet, it->second);  // UpdateAll only ever shares the group, never gives it back
+		}
+		SKSE::log::info("SetRiderCollision: pet {:08X} enabled={}", a_pet->GetFormID(), a_enabled);
+		return true;
+	}
+
+	bool SetReleaseOffset(RE::Actor* a_pet, float a_x, float a_y)
+	{
+		if (!a_pet || !std::isfinite(a_x) || !std::isfinite(a_y)) {
+			return false;
+		}
+		std::lock_guard lock(g_mutex);
+		auto it = g_attached.find(a_pet->GetFormID());
+		if (it == g_attached.end() || it->second.detaching) {
+			return false;
+		}
+		it->second.releaseX = a_x;
+		it->second.releaseY = a_y;
+		SKSE::log::info("SetReleaseOffset: pet {:08X} ({:.1f}, {:.1f})", a_pet->GetFormID(), a_x, a_y);
+		return true;
+	}
+
 	bool SetRotationOffset(RE::Actor* a_pet, float a_degrees)
 	{
 		if (!a_pet) {
@@ -758,6 +843,11 @@ namespace Piggyback
 				// it, at the cost of the host passing through every character while carrying.
 				if (!data.hostCollision) {
 					SetCharacterCollisions(host, false);
+				}
+				// Opt-in (SetRiderCollision): re-applied every frame, like the flags above, because the
+				// controller can be recreated (cell change) with its original group.
+				if (!data.riderCollision) {
+					ShareHostGroup(pet, host, data);
 				}
 			}
 
@@ -1031,12 +1121,13 @@ namespace Piggyback
 			}
 
 			if (data.detaching) {
-				// Exit: bring it gently back to the ground just behind the host, then release it.
+				// Exit: bring it gently back to the ground at the release spot (behind the host unless
+				// SetReleaseOffset said otherwise), then release it.
 				data.blend += a_delta / kBlendOut;
 				const RE::NiPoint3 hostPos = host->GetPosition();
 				const RE::NiPoint3 release = ComputeTarget(
 					hostPos, hostYaw,
-					RE::NiPoint3{ 0.0f, -kReleaseDistance * data.hostScale, kReleaseClearance });
+					RE::NiPoint3{ data.releaseX * data.hostScale, data.releaseY * data.hostScale, kReleaseClearance });
 				pet->SetPosition(ArcPath(data.fromPos, release, data.blend, kArcOut), true);
 
 				if (data.blend >= 1.0f) {
@@ -1129,6 +1220,16 @@ namespace Piggyback
 			return SetHostCollision(a_pet, a_enabled);
 		}
 
+		bool PapyrusSetRiderCollision(RE::StaticFunctionTag*, RE::Actor* a_pet, bool a_enabled)
+		{
+			return SetRiderCollision(a_pet, a_enabled);
+		}
+
+		bool PapyrusSetReleaseOffset(RE::StaticFunctionTag*, RE::Actor* a_pet, float a_x, float a_y)
+		{
+			return SetReleaseOffset(a_pet, a_x, a_y);
+		}
+
 		bool PapyrusSetRotationOffset(RE::StaticFunctionTag*, RE::Actor* a_pet, float a_degrees)
 		{
 			return SetRotationOffset(a_pet, a_degrees);
@@ -1152,8 +1253,10 @@ namespace Piggyback
 		a_vm->RegisterFunction("SetTurnSmoothing", "Piggyback", PapyrusSetTurnSmoothing);
 		a_vm->RegisterFunction("SetRotationOffset", "Piggyback", PapyrusSetRotationOffset);
 		a_vm->RegisterFunction("SetHostCollision", "Piggyback", PapyrusSetHostCollision);
+		a_vm->RegisterFunction("SetRiderCollision", "Piggyback", PapyrusSetRiderCollision);
+		a_vm->RegisterFunction("SetReleaseOffset", "Piggyback", PapyrusSetReleaseOffset);
 		a_vm->RegisterFunction("GetVersion", "Piggyback", PapyrusGetVersion);
-		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / SetFollowMaxDistance / SetTurnSmoothing / SetRotationOffset / SetHostCollision / GetVersion.");
+		SKSE::log::info("Papyrus functions registered: Piggyback.Attach / SetOffset / Detach / IsAttached / IsInstalled / SetFollowLag / SetFollowMaxDistance / SetTurnSmoothing / SetRotationOffset / SetHostCollision / SetRiderCollision / SetReleaseOffset / GetVersion.");
 		return true;
 	}
 }

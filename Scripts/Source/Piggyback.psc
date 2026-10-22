@@ -63,7 +63,19 @@ bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
 ; (still being investigated). Call it again after every Attach. Returns false if not attached.
 bool Function SetHostCollision(Actor akPet, bool abEnabled) global native
 
-; Version of the installed DLL as one number: major * 10000 + minor * 100 + patch (10202 for 1.2.2).
+; Since 1.2.3 (GetVersion() >= 10203). abEnabled = true by default. false = akPet and its host stop
+; colliding with EACH OTHER, while both keep colliding with the ground, the scenery and everyone else.
+; For a pet held close against its host (in its arms, on its back), which a running host otherwise walks
+; into. Restored on release. Call it again after every Attach. Returns false if akPet is not attached.
+bool Function SetRiderCollision(Actor akPet, bool abEnabled) global native
+
+; Since 1.2.3 (GetVersion() >= 10203). Where Detach sets akPet down, in the host's facing space like the
+; offset: X = right, Y = forward (negative = behind), scaled to the host's build. Default (0, -60):
+; behind the host. Use a positive afY to set a pet carried in front down in front, instead of through
+; the host. Call it again after every Attach. Returns false if akPet is not attached.
+bool Function SetReleaseOffset(Actor akPet, float afX, float afY) global native
+
+; Version of the installed DLL as one number: major * 10000 + minor * 100 + patch (10203 for 1.2.3).
 ; Returns 0 when Piggyback.dll is absent or older than 1.2.0.
 int Function GetVersion() global native
 
