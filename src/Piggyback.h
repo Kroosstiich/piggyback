@@ -58,17 +58,17 @@ namespace Piggyback
 	// Belongs to the current attachment. Returns false if the pet is not attached.
 	bool SetHostCollision(RE::Actor* a_pet, bool a_enabled);
 
-	// Rider collision (1.2.3): true by default. false = the rider and its host stop colliding with
+	// Rider collision (1.3.0): true by default. false = the rider and its host stop colliding with
 	// EACH OTHER (the rider joins the host's Havok system group); both still collide with everything
 	// else. Restored on release. Belongs to the current attachment. False if the pet is not attached.
 	bool SetRiderCollision(RE::Actor* a_pet, bool a_enabled);
 
-	// Release spot (1.2.3): where Detach sets the rider down, in the host's facing space (X right,
+	// Release spot (1.3.0): where Detach sets the rider down, in the host's facing space (X right,
 	// Y forward), at standard build like the offset. Default (0, -60): behind the host. Belongs to the
 	// current attachment. Returns false if the pet is not attached or a value is not a number.
 	bool SetReleaseOffset(RE::Actor* a_pet, float a_x, float a_y);
 
-	// DLL version as a single number: major * 10000 + minor * 100 + patch (10203 for 1.2.3). Lets a
+	// DLL version as a single number: major * 10000 + minor * 100 + patch (10300 for 1.3.0). Lets a
 	// consumer check that a function exists before calling it; IsInstalled stays the presence probe.
 	std::int32_t GetVersion();
 

@@ -64,7 +64,7 @@ bool Function SetTurnSmoothing(Actor akPet, bool abEnabled) global native
 bool Function SetRotationOffset(Actor akPet, float afDegrees) global native
 bool Function SetHostCollision(Actor akPet, bool abEnabled) global native
 
-; Since 1.2.3
+; Since 1.3.0
 bool Function SetRiderCollision(Actor akPet, bool abEnabled) global native
 bool Function SetReleaseOffset(Actor akPet, float afX, float afY) global native
 
@@ -180,7 +180,7 @@ function is kept for mods that want a host to pass through other characters whil
 The setting belongs to the current attachment: **call it again after every `Attach`**. Returns
 `false` if the actor is not attached.
 
-### `SetRiderCollision(akPet, abEnabled)` — since 1.2.3
+### `SetRiderCollision(akPet, abEnabled)` — since 1.3.0
 
 Each frame the game moves the host first, and Piggyback re-places the carried actor right after. An
 actor held **close against** its host (in its arms, on its back) is therefore walked into by a
@@ -195,7 +195,7 @@ default) keeps the normal behaviour.
 The setting belongs to the current attachment: **call it again after every `Attach`**. Returns
 `false` if the actor is not attached.
 
-### `SetReleaseOffset(akPet, afX, afY)` — since 1.2.3
+### `SetReleaseOffset(akPet, afX, afY)` — since 1.3.0
 
 By default `Detach` sets the actor down **behind** the host, 60 units back. For an actor carried in
 front, that path goes straight through the host. This sets the spot instead, in the same space as
@@ -245,7 +245,7 @@ Things to know:
 
 ### `GetVersion()` — since 1.2.0
 
-The installed DLL version as one number: `major * 10000 + minor * 100 + patch`, so `10203` for 1.2.3.
+The installed DLL version as one number: `major * 10000 + minor * 100 + patch`, so `10300` for 1.3.0.
 Returns `0` when the DLL is missing **or older than 1.2.0** (the function does not exist there). Use it
 before calling anything added after 1.1:
 
@@ -578,7 +578,7 @@ at commit `bedcb1e05418baba7b316a650b6180c2dd6007a8`.
 The vcpkg baseline is pinned separately. The build script and triplet select the
 same compiler toolset.
 
-## Compatibility — 1.2.3
+## Compatibility — 1.3.0
 
 Tested on **Skyrim Steam 1.7.104** with **SKSE 2.3.1** and the matching Address Library
 database. **Skyrim 1.6.1170** is reported working by players. Piggyback is built with
